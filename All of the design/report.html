@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Reports &amp; Management - MedCore Systems</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Courier+Prime:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface": "#181c20",
+                        "secondary-fixed-dim": "#7ad7c6",
+                        "on-secondary": "#ffffff",
+                        "surface-container-high": "#e5e8ee",
+                        "on-tertiary": "#ffffff",
+                        "inverse-surface": "#2d3135",
+                        "secondary": "#006b5e",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-container": "#ced9ff",
+                        "error-container": "#ffdad6",
+                        "surface-variant": "#dfe3e8",
+                        "primary": "#0041a2",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#005047",
+                        "inverse-primary": "#b2c5ff",
+                        "outline": "#737785",
+                        "error": "#ba1a1a",
+                        "primary-fixed": "#dae2ff",
+                        "tertiary-fixed-dim": "#ffb786",
+                        "on-background": "#181c20",
+                        "outline-variant": "#c3c6d6",
+                        "inverse-on-surface": "#eef1f7",
+                        "on-primary-fixed": "#001847",
+                        "on-tertiary-fixed": "#311300",
+                        "secondary-container": "#94f0df",
+                        "secondary-fixed": "#97f3e2",
+                        "surface-container-highest": "#dfe3e8",
+                        "primary-container": "#0b57d0",
+                        "surface-container": "#ebeef4",
+                        "surface-tint": "#0856cf",
+                        "surface": "#f7f9ff",
+                        "on-secondary-container": "#006f62",
+                        "primary-fixed-dim": "#b2c5ff",
+                        "tertiary-container": "#974a00",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed-variant": "#0040a1",
+                        "background": "#f7f9ff",
+                        "tertiary": "#733700",
+                        "on-error-container": "#93000a",
+                        "surface-dim": "#d7dae0",
+                        "on-tertiary-container": "#ffd1b4",
+                        "on-surface-variant": "#424654",
+                        "surface-bright": "#f7f9ff",
+                        "on-secondary-fixed": "#00201b",
+                        "tertiary-fixed": "#ffdcc6",
+                        "surface-container-low": "#f1f4fa",
+                        "on-tertiary-fixed-variant": "#723600"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-desktop": "32px",
+                        "xs": "4px",
+                        "gutter": "16px",
+                        "lg": "24px",
+                        "margin-mobile": "16px",
+                        "xl": "32px",
+                        "sm": "8px",
+                        "base": "4px",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "code-md": ["Courier Prime"],
+                        "headline-sm": ["Inter"],
+                        "body-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "display-lg": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-lg": ["28px", { "lineHeight": "36px", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-md": ["22px", { "lineHeight": "30px", "fontWeight": "600" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "code-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-sm": ["18px", { "lineHeight": "26px", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .icon-fill {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen flex">
+<!-- SideNavBar -->
+<nav class="bg-surface text-primary font-label-md text-label-md h-screen w-64 fixed left-0 top-0 border-r border-outline-variant flex flex-col py-lg px-md z-40">
+<div class="mb-xl flex items-center gap-sm">
+<span aria-label="Hospital Logo" class="material-symbols-outlined text-primary text-3xl icon-fill">local_hospital</span>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">MedCore Systems</h1>
+<p class="text-on-surface-variant text-xs mt-1">Clinical Operations</p>
+</div>
+</div>
+<ul class="flex-1 space-y-sm overflow-y-auto">
+<li><a class="flex items-center gap-md px-md py-sm rounded-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined">dashboard</span>Dashboard</a></li>
+<li><a class="flex items-center gap-md px-md py-sm rounded-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined">person</span>Patients</a></li>
+<li><a class="flex items-center gap-md px-md py-sm rounded-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined">group_add</span>Queue</a></li>
+<li><a class="flex items-center gap-md px-md py-sm rounded-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined">medical_services</span>Consultations</a></li>
+<li><a class="flex items-center gap-md px-md py-sm rounded-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined">biotech</span>Laboratory</a></li>
+<li><a class="flex items-center gap-md px-md py-sm rounded-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined">medication</span>Pharmacy</a></li>
+<li><a class="flex items-center gap-md px-md py-sm rounded-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined">inventory_2</span>Inventory</a></li>
+<li><a class="flex items-center gap-md px-md py-sm rounded-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined">payments</span>Billing</a></li>
+<li><a class="flex items-center gap-md px-md py-sm rounded-md text-primary font-bold border-r-2 border-primary bg-surface-container-low transition-colors" href="#"><span class="material-symbols-outlined icon-fill">assessment</span>Reports</a></li>
+<li><a class="flex items-center gap-md px-md py-sm rounded-md text-on-surface-variant hover:bg-surface-container transition-colors" href="#"><span class="material-symbols-outlined">settings</span>Settings</a></li>
+</ul>
+</nav>
+<!-- Main Content Wrapper -->
+<div class="flex-1 ml-64 flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="bg-surface text-primary font-body-md text-body-md w-full sticky top-0 z-50 border-b border-outline-variant flex justify-between items-center px-lg py-sm">
+<div class="flex items-center gap-md">
+<span class="font-headline-sm text-headline-sm font-bold text-primary">MedCore Management</span>
+<div class="relative ml-xl hidden md:block">
+<span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="pl-xl pr-sm py-sm rounded-md border border-outline-variant bg-surface focus:ring-2 focus:ring-primary focus:border-primary outline-none w-64 text-sm text-on-surface placeholder:text-outline transition-all" placeholder="Search reports..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<button class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full transition-colors"><span class="material-symbols-outlined">notifications</span></button>
+<button class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full transition-colors"><span class="material-symbols-outlined">help</span></button>
+<div class="h-8 w-8 rounded-full bg-primary-container flex items-center justify-center overflow-hidden border border-outline-variant">
+<img alt="Dr. Smith - Physician" class="h-full w-full object-cover" data-alt="Professional headshot of a mature male physician with a stethoscope around his neck, smiling warmly in a bright, modern clinical setting with white walls and subtle blue accents. Soft, natural light. High quality, realistic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA3klmQTjBLbDy5UN43P6qC4NKCTnDR5P3lOmYkcQCSMQhfnfKjAW4kJm9vsuqRv5mAvxI74g3zLb2UC_g-DS2YzrTVesBYl49dI1p071cjoykk-Tm3o8AQU4PVarAHKOQtreYDeTL7kDpNHnlAQQmDH3TRdRHValOzNQQfbqN2nVVwbPwlcCBTlSa7Cnsktq6G1udG3s9WeKBoRaO7SivgIwLp1qGQl7e0AwNUOgxxDGDRfV-pDAPTPw"/>
+</div>
+</div>
+</header>
+<!-- Dashboard Content -->
+<main class="flex-1 p-margin-desktop bg-background overflow-y-auto">
+<!-- Page Header & Filters -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-xl gap-md">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-xs">Reports &amp; Management</h2>
+<p class="text-on-surface-variant text-body-md">Overview of operational and financial metrics.</p>
+</div>
+<div class="flex items-center gap-sm">
+<div class="relative">
+<select class="appearance-none bg-surface border border-outline-variant rounded-md pl-md pr-xl py-sm text-on-surface text-body-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none cursor-pointer">
+<option>Last 30 Days</option>
+<option>This Quarter</option>
+<option>Year to Date</option>
+</select>
+<span class="material-symbols-outlined absolute right-sm top-1/2 -translate-y-1/2 text-outline pointer-events-none text-sm">calendar_today</span>
+</div>
+<button class="bg-primary text-on-primary hover:bg-surface-tint font-label-md text-label-md px-md py-sm rounded-md transition-colors flex items-center gap-xs shadow-sm">
+<span class="material-symbols-outlined text-sm">download</span>
+                        Export Report
+                    </button>
+</div>
+</div>
+<!-- KPI Cards Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter mb-xl">
+<!-- Total Revenue -->
+<div class="bg-surface border border-outline-variant rounded-lg p-lg shadow-sm flex flex-col justify-between">
+<div class="flex justify-between items-start mb-md">
+<span class="text-on-surface-variant font-label-md text-label-md uppercase tracking-wider">Total Revenue</span>
+<div class="bg-primary-container text-on-primary-container p-sm rounded-md flex items-center justify-center">
+<span class="material-symbols-outlined">payments</span>
+</div>
+</div>
+<div>
+<div class="font-display-lg text-display-lg text-on-surface">$124,500</div>
+<div class="flex items-center gap-xs mt-sm text-secondary font-body-sm">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span>+12% vs last month</span>
+</div>
+</div>
+</div>
+<!-- Total Consultations -->
+<div class="bg-surface border border-outline-variant rounded-lg p-lg shadow-sm flex flex-col justify-between">
+<div class="flex justify-between items-start mb-md">
+<span class="text-on-surface-variant font-label-md text-label-md uppercase tracking-wider">Consultations</span>
+<div class="bg-surface-container-high text-on-surface p-sm rounded-md flex items-center justify-center">
+<span class="material-symbols-outlined">medical_services</span>
+</div>
+</div>
+<div>
+<div class="font-display-lg text-display-lg text-on-surface">842</div>
+<div class="flex items-center gap-xs mt-sm text-secondary font-body-sm">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span>+5% vs last month</span>
+</div>
+</div>
+</div>
+<!-- Lab Tests Completed -->
+<div class="bg-surface border border-outline-variant rounded-lg p-lg shadow-sm flex flex-col justify-between">
+<div class="flex justify-between items-start mb-md">
+<span class="text-on-surface-variant font-label-md text-label-md uppercase tracking-wider">Lab Tests</span>
+<div class="bg-surface-container-high text-on-surface p-sm rounded-md flex items-center justify-center">
+<span class="material-symbols-outlined">biotech</span>
+</div>
+</div>
+<div>
+<div class="font-display-lg text-display-lg text-on-surface">1,210</div>
+<div class="flex items-center gap-xs mt-sm text-secondary font-body-sm">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span>+8% vs last month</span>
+</div>
+</div>
+</div>
+<!-- Pharmacy Sales -->
+<div class="bg-surface border border-outline-variant rounded-lg p-lg shadow-sm flex flex-col justify-between">
+<div class="flex justify-between items-start mb-md">
+<span class="text-on-surface-variant font-label-md text-label-md uppercase tracking-wider">Pharmacy Sales</span>
+<div class="bg-surface-container-high text-on-surface p-sm rounded-md flex items-center justify-center">
+<span class="material-symbols-outlined">medication</span>
+</div>
+</div>
+<div>
+<div class="font-display-lg text-display-lg text-on-surface">$45,200</div>
+<div class="flex items-center gap-xs mt-sm text-secondary font-body-sm">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span>+15% vs last month</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Charts Section -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter mb-xl">
+<!-- Revenue vs Expenses -->
+<div class="bg-surface border border-outline-variant rounded-lg p-lg shadow-sm">
+<div class="flex justify-between items-center mb-md">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Revenue vs. Expenses</h3>
+<button class="text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined">more_vert</span></button>
+</div>
+<div class="h-64 w-full bg-surface-container-low rounded-md border border-outline-variant border-dashed flex items-center justify-center relative overflow-hidden">
+<!-- Simulated Line Chart -->
+<div class="absolute bottom-0 left-0 w-full h-full p-sm flex items-end justify-between opacity-50">
+<div class="w-1/12 h-[30%] bg-primary rounded-t-sm"></div>
+<div class="w-1/12 h-[40%] bg-primary rounded-t-sm"></div>
+<div class="w-1/12 h-[35%] bg-primary rounded-t-sm"></div>
+<div class="w-1/12 h-[50%] bg-primary rounded-t-sm"></div>
+<div class="w-1/12 h-[70%] bg-primary rounded-t-sm"></div>
+<div class="w-1/12 h-[60%] bg-primary rounded-t-sm"></div>
+<div class="w-1/12 h-[80%] bg-primary rounded-t-sm"></div>
+<div class="w-1/12 h-[90%] bg-primary rounded-t-sm"></div>
+</div>
+<span class="text-on-surface-variant font-body-sm z-10 bg-surface/80 px-2 py-1 rounded backdrop-blur-sm">[Interactive Line Chart Component]</span>
+</div>
+<div class="flex justify-center gap-md mt-sm">
+<div class="flex items-center gap-xs text-body-sm text-on-surface-variant"><div class="w-3 h-3 rounded-full bg-primary"></div> Revenue</div>
+<div class="flex items-center gap-xs text-body-sm text-on-surface-variant"><div class="w-3 h-3 rounded-full bg-error"></div> Expenses</div>
+</div>
+</div>
+<!-- Patient Volume by Department -->
+<div class="bg-surface border border-outline-variant rounded-lg p-lg shadow-sm">
+<div class="flex justify-between items-center mb-md">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Volume by Department</h3>
+<button class="text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined">more_vert</span></button>
+</div>
+<div class="h-64 w-full bg-surface-container-low rounded-md border border-outline-variant border-dashed flex items-center justify-center relative overflow-hidden">
+<!-- Simulated Bar Chart -->
+<div class="absolute bottom-0 left-0 w-full h-full p-md flex items-end justify-around opacity-60">
+<div class="w-1/4 h-[85%] bg-primary rounded-t-md"></div>
+<div class="w-1/4 h-[60%] bg-secondary rounded-t-md"></div>
+<div class="w-1/4 h-[40%] bg-tertiary rounded-t-md"></div>
+</div>
+<span class="text-on-surface-variant font-body-sm z-10 bg-surface/80 px-2 py-1 rounded backdrop-blur-sm">[Interactive Bar Chart Component]</span>
+</div>
+<div class="flex justify-center gap-md mt-sm">
+<div class="flex items-center gap-xs text-body-sm text-on-surface-variant"><div class="w-3 h-3 rounded-sm bg-primary"></div> Consultation</div>
+<div class="flex items-center gap-xs text-body-sm text-on-surface-variant"><div class="w-3 h-3 rounded-sm bg-secondary"></div> Laboratory</div>
+<div class="flex items-center gap-xs text-body-sm text-on-surface-variant"><div class="w-3 h-3 rounded-sm bg-tertiary"></div> Pharmacy</div>
+</div>
+</div>
+</div>
+<!-- Detailed Reports Table -->
+<div class="bg-surface border border-outline-variant rounded-lg shadow-sm overflow-hidden">
+<div class="p-lg border-b border-outline-variant flex justify-between items-center bg-surface-bright">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Recent Operational Reports</h3>
+<button class="text-primary font-label-md text-label-md hover:underline">View All</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-outline-variant">
+<th class="p-sm pl-lg font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Report Name</th>
+<th class="p-sm font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Department</th>
+<th class="p-sm font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Generated Date</th>
+<th class="p-sm font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Status</th>
+<th class="p-sm pr-lg text-right font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Actions</th>
+</tr>
+</thead>
+<tbody class="text-body-sm text-on-surface divide-y divide-outline-variant">
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="p-sm pl-lg py-3 font-medium">Monthly Financial Summary</td>
+<td class="p-sm py-3 text-on-surface-variant">Finance</td>
+<td class="p-sm py-3 text-on-surface-variant">Oct 31, 2023</td>
+<td class="p-sm py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary-container text-on-secondary-container">Completed</span>
+</td>
+<td class="p-sm pr-lg py-3 text-right">
+<button class="text-primary hover:text-primary-fixed-dim transition-colors" title="Download"><span class="material-symbols-outlined text-lg">download</span></button>
+</td>
+</tr>
+<tr class="bg-surface-bright hover:bg-surface-container-lowest transition-colors group">
+<td class="p-sm pl-lg py-3 font-medium">Inventory Usage Report</td>
+<td class="p-sm py-3 text-on-surface-variant">Pharmacy / Central Supply</td>
+<td class="p-sm py-3 text-on-surface-variant">Oct 30, 2023</td>
+<td class="p-sm py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-surface-container-highest text-on-surface">Pending</span>
+</td>
+<td class="p-sm pr-lg py-3 text-right">
+<button class="text-outline hover:text-primary transition-colors cursor-not-allowed opacity-50" disabled="" title="Downloading..."><span class="material-symbols-outlined text-lg">download</span></button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="p-sm pl-lg py-3 font-medium">Doctor Productivity - Oct</td>
+<td class="p-sm py-3 text-on-surface-variant">Clinical</td>
+<td class="p-sm py-3 text-on-surface-variant">Oct 29, 2023</td>
+<td class="p-sm py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary-container text-on-secondary-container">Completed</span>
+</td>
+<td class="p-sm pr-lg py-3 text-right">
+<button class="text-primary hover:text-primary-fixed-dim transition-colors" title="Download"><span class="material-symbols-outlined text-lg">download</span></button>
+</td>
+</tr>
+<tr class="bg-surface-bright hover:bg-surface-container-lowest transition-colors group">
+<td class="p-sm pl-lg py-3 font-medium">Patient Satisfaction Survey</td>
+<td class="p-sm py-3 text-on-surface-variant">Administration</td>
+<td class="p-sm py-3 text-on-surface-variant">Oct 28, 2023</td>
+<td class="p-sm py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary-container text-on-secondary-container">Completed</span>
+</td>
+<td class="p-sm pr-lg py-3 text-right">
+<button class="text-primary hover:text-primary-fixed-dim transition-colors" title="Download"><span class="material-symbols-outlined text-lg">download</span></button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</main>
+</div>
+</body></html>

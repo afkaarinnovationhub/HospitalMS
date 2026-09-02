@@ -1,0 +1,330 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>MedCore Systems - Billing &amp; Payments</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Courier+Prime&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-error": "#ffffff",
+                        "surface": "#f7f9ff",
+                        "on-primary-container": "#ced9ff",
+                        "error": "#ba1a1a",
+                        "background": "#f7f9ff",
+                        "tertiary-container": "#974a00",
+                        "on-primary-fixed": "#001847",
+                        "secondary-fixed": "#97f3e2",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-fixed-variant": "#005047",
+                        "on-secondary-container": "#006f62",
+                        "on-error-container": "#93000a",
+                        "primary-fixed-dim": "#b2c5ff",
+                        "on-secondary-fixed": "#00201b",
+                        "tertiary-fixed": "#ffdcc6",
+                        "on-primary-fixed-variant": "#0040a1",
+                        "surface-container": "#ebeef4",
+                        "on-background": "#181c20",
+                        "primary-fixed": "#dae2ff",
+                        "primary-container": "#0b57d0",
+                        "on-surface-variant": "#424654",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-fixed": "#311300",
+                        "secondary-fixed-dim": "#7ad7c6",
+                        "surface-bright": "#f7f9ff",
+                        "error-container": "#ffdad6",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-tint": "#0856cf",
+                        "primary": "#0041a2",
+                        "surface-variant": "#dfe3e8",
+                        "on-tertiary-fixed-variant": "#723600",
+                        "inverse-surface": "#2d3135",
+                        "secondary": "#006b5e",
+                        "inverse-on-surface": "#eef1f7",
+                        "on-surface": "#181c20",
+                        "surface-container-highest": "#dfe3e8",
+                        "tertiary-fixed-dim": "#ffb786",
+                        "surface-container-low": "#f1f4fa",
+                        "surface-dim": "#d7dae0",
+                        "inverse-primary": "#b2c5ff",
+                        "tertiary": "#733700",
+                        "outline": "#737785",
+                        "on-tertiary-container": "#ffd1b4",
+                        "secondary-container": "#94f0df",
+                        "surface-container-high": "#e5e8ee",
+                        "outline-variant": "#c3c6d6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "base": "4px",
+                        "margin-mobile": "16px",
+                        "lg": "24px",
+                        "gutter": "16px",
+                        "xs": "4px",
+                        "md": "16px",
+                        "margin-desktop": "32px",
+                        "sm": "8px",
+                        "xl": "32px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "label-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "code-md": ["Courier Prime"]
+                    },
+                    "fontSize": {
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-lg": ["28px", { "lineHeight": "36px", "fontWeight": "600" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-sm": ["18px", { "lineHeight": "26px", "fontWeight": "600" }],
+                        "display-lg": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "headline-md": ["22px", { "lineHeight": "30px", "fontWeight": "600" }],
+                        "code-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md h-screen overflow-hidden flex">
+<!-- SideNavBar -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-surface border-r border-outline-variant flex flex-col py-lg px-md z-40 hidden md:flex">
+<div class="flex items-center gap-sm mb-xl">
+<span class="material-symbols-outlined text-primary font-headline-md text-headline-md" style="font-variation-settings: 'FILL' 1;">local_hospital</span>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">MedCore Systems</h1>
+<p class="font-label-md text-label-md text-on-surface-variant">Clinical Operations</p>
+</div>
+</div>
+<nav class="flex-1 flex flex-col gap-sm overflow-y-auto">
+<a class="flex items-center gap-md px-sm py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-md px-sm py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">person</span>
+                Patients
+            </a>
+<a class="flex items-center gap-md px-sm py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">group_add</span>
+                Queue
+            </a>
+<a class="flex items-center gap-md px-sm py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">medical_services</span>
+                Consultations
+            </a>
+<a class="flex items-center gap-md px-sm py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">biotech</span>
+                Laboratory
+            </a>
+<a class="flex items-center gap-md px-sm py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">medication</span>
+                Pharmacy
+            </a>
+<a class="flex items-center gap-md px-sm py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+                Inventory
+            </a>
+<a class="flex items-center gap-md px-sm py-sm rounded-DEFAULT text-primary font-bold border-r-2 border-primary bg-surface-container-low font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">payments</span>
+                Billing
+            </a>
+<a class="flex items-center gap-md px-sm py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">assessment</span>
+                Reports
+            </a>
+<a class="flex items-center gap-md px-sm py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors font-label-md text-label-md mt-auto" href="#">
+<span class="material-symbols-outlined">settings</span>
+                Settings
+            </a>
+</nav>
+</aside>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col md:ml-64 w-full h-full">
+<!-- TopNavBar -->
+<header class="bg-surface border-b border-outline-variant docked full-width top-0 sticky z-50 flex justify-between items-center w-full px-lg py-sm">
+<div class="flex items-center gap-md md:hidden">
+<button class="text-on-surface-variant p-sm hover:bg-surface-container-low rounded-DEFAULT transition-colors">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<span class="font-headline-sm text-headline-sm font-bold text-primary">MedCore</span>
+</div>
+<div class="hidden md:flex items-center gap-md">
+<span class="font-headline-sm text-headline-sm font-bold text-primary">MedCore Management</span>
+</div>
+<div class="flex-1 max-w-md mx-lg hidden md:block">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-DEFAULT py-sm pl-xl pr-sm text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="Search patients, invoices..." type="text">
+</div>
+</div>
+<div class="flex items-center gap-sm">
+<button class="text-on-surface-variant p-sm hover:bg-surface-container-low rounded-DEFAULT transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-on-surface-variant p-sm hover:bg-surface-container-low rounded-DEFAULT transition-colors">
+<span class="material-symbols-outlined">help</span>
+</button>
+<div class="h-8 w-8 rounded-full bg-surface-variant overflow-hidden ml-sm border border-outline-variant">
+<img alt="Dr. Smith - Physician" class="w-full h-full object-cover" data-alt="A small circular avatar portrait of a male doctor wearing a white coat and stethoscope, set against a light blue neutral background. Professional clinical lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAnr2oSguW_co8j8inqTzYGkwK2ZxwGs0YhzFx0DVuT850TC_AWFeqrRFe-pcgQPYZVTVlhjOAYZZssQEkTXyTTXz2uSAUmZUuL0nlRzGsvAGVyufzKFHy69Eaxggjd-A3Emm1Iy3pqWhs3mBfkpML0W5XGQSKWwTCEGMDhE098sR7nhPwOYnekNfHCXSJL2sLy3Y9SJ4XaZ3fEfxLmPQBlx1ccQQIEeMq6rJmhsu2G5OGwmq56EBnFtQ">
+</div>
+</div>
+</header>
+<!-- Canvas -->
+<main class="flex-1 overflow-y-auto p-margin-mobile md:p-margin-desktop bg-background">
+<div class="max-w-5xl mx-auto space-y-lg">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-md pb-md border-b border-outline-variant">
+<div>
+<h2 class="font-headline-lg text-headline-lg font-bold text-on-background">Billing &amp; Payments</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-xs">Invoice #INV-2023-0892 • Patient: Jane Doe</p>
+</div>
+<div class="flex gap-sm">
+<span class="inline-flex items-center px-sm py-xs rounded-full bg-error-container text-on-error-container font-label-md text-label-md">
+<span class="material-symbols-outlined text-[16px] mr-xs">error</span> Unpaid
+                        </span>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-lg">
+<!-- Left Column: Itemized Charges -->
+<div class="lg:col-span-2 space-y-md">
+<div class="bg-surface rounded-lg border border-outline-variant p-lg">
+<h3 class="font-headline-sm text-headline-sm font-semibold mb-md border-b border-outline-variant pb-sm">Itemized Charges</h3>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider">
+<th class="py-sm px-xs font-semibold">Description</th>
+<th class="py-sm px-xs font-semibold text-right">Qty</th>
+<th class="py-sm px-xs font-semibold text-right">Unit Price</th>
+<th class="py-sm px-xs font-semibold text-right">Total</th>
+</tr>
+</thead>
+<tbody class="font-body-md text-body-md">
+<tr class="border-b border-surface-variant hover:bg-surface-container-low transition-colors">
+<td class="py-sm px-xs">
+<div class="font-semibold text-on-background">Consultation Fee</div>
+<div class="text-on-surface-variant text-body-sm">Dr. Smith - General Practice</div>
+</td>
+<td class="py-sm px-xs text-right">1</td>
+<td class="py-sm px-xs text-right">$20.00</td>
+<td class="py-sm px-xs text-right font-semibold">$20.00</td>
+</tr>
+<tr class="border-b border-surface-variant hover:bg-surface-container-low transition-colors">
+<td class="py-sm px-xs">
+<div class="font-semibold text-on-background">CBC Lab Test</div>
+<div class="text-on-surface-variant text-body-sm">Complete Blood Count</div>
+</td>
+<td class="py-sm px-xs text-right">1</td>
+<td class="py-sm px-xs text-right">$15.00</td>
+<td class="py-sm px-xs text-right font-semibold">$15.00</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="py-sm px-xs">
+<div class="font-semibold text-on-background">Amoxicillin</div>
+<div class="text-on-surface-variant text-body-sm">Pharmacy Dispense - 250mg</div>
+</td>
+<td class="py-sm px-xs text-right">1</td>
+<td class="py-sm px-xs text-right">$10.00</td>
+<td class="py-sm px-xs text-right font-semibold">$10.00</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Patient Info Summary Card -->
+<div class="bg-surface rounded-lg border border-outline-variant p-md flex items-center gap-md">
+<div class="h-12 w-12 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-headline-md text-headline-md font-bold">
+                                JD
+                             </div>
+<div>
+<h4 class="font-headline-sm text-headline-sm font-semibold">Jane Doe</h4>
+<p class="font-body-md text-body-md text-on-surface-variant">DOB: 12/05/1985 • ID: P-98234</p>
+</div>
+</div>
+</div>
+<!-- Right Column: Summary & Payment -->
+<div class="space-y-md">
+<!-- Totals Card -->
+<div class="bg-surface rounded-lg border border-outline-variant p-lg">
+<h3 class="font-headline-sm text-headline-sm font-semibold mb-md">Summary</h3>
+<div class="space-y-sm font-body-md text-body-md">
+<div class="flex justify-between text-on-surface-variant">
+<span>Subtotal</span>
+<span>$45.00</span>
+</div>
+<div class="flex justify-between text-on-surface-variant">
+<span>Tax (0%)</span>
+<span>$0.00</span>
+</div>
+<div class="flex justify-between text-secondary font-medium">
+<span>Insurance Coverage</span>
+<span>-$0.00</span>
+</div>
+<div class="pt-sm border-t border-outline-variant mt-sm flex justify-between items-center">
+<span class="font-headline-sm text-headline-sm font-bold text-on-background">Grand Total</span>
+<span class="font-headline-sm text-headline-sm font-bold text-primary">$45.00</span>
+</div>
+</div>
+</div>
+<!-- Payment Processing Card -->
+<div class="bg-surface rounded-lg border border-outline-variant p-lg">
+<h3 class="font-headline-sm text-headline-sm font-semibold mb-md">Payment Method</h3>
+<div class="grid grid-cols-3 gap-sm mb-lg">
+<button class="flex flex-col items-center justify-center gap-xs py-sm px-xs border-2 border-primary bg-primary-fixed text-on-primary-fixed rounded-DEFAULT transition-all font-label-md text-label-md">
+<span class="material-symbols-outlined">payments</span>
+                                    Cash
+                                </button>
+<button class="flex flex-col items-center justify-center gap-xs py-sm px-xs border border-outline-variant hover:border-primary hover:bg-surface-container-low text-on-surface-variant rounded-DEFAULT transition-all font-label-md text-label-md">
+<span class="material-symbols-outlined">credit_card</span>
+                                    Card
+                                </button>
+<button class="flex flex-col items-center justify-center gap-xs py-sm px-xs border border-outline-variant hover:border-primary hover:bg-surface-container-low text-on-surface-variant rounded-DEFAULT transition-all font-label-md text-label-md">
+<span class="material-symbols-outlined">health_and_safety</span>
+                                    Insurance
+                                </button>
+</div>
+<div class="space-y-md">
+<div>
+<label class="block font-label-md text-label-md text-on-surface-variant mb-xs">Amount Received</label>
+<div class="relative">
+<span class="absolute left-sm top-1/2 -translate-y-1/2 text-on-surface-variant font-body-md">$</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-DEFAULT py-sm pl-xl pr-sm text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none font-code-md text-code-md" type="number" value="45.00">
+</div>
+</div>
+<div class="flex flex-col gap-sm pt-sm">
+<button class="w-full bg-primary hover:bg-on-primary-fixed-variant text-on-primary py-sm px-md rounded-DEFAULT font-label-md text-label-md font-bold transition-colors flex items-center justify-center gap-sm">
+<span class="material-symbols-outlined">check_circle</span>
+                                        Process Payment
+                                    </button>
+<button class="w-full bg-transparent border border-primary text-primary hover:bg-primary-fixed py-sm px-md rounded-DEFAULT font-label-md text-label-md font-bold transition-colors flex items-center justify-center gap-sm">
+<span class="material-symbols-outlined">receipt_long</span>
+                                        Generate Receipt
+                                    </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

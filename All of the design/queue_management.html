@@ -1,0 +1,301 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Queue Management Interface</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Courier+Prime&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-error": "#ffffff",
+                      "surface": "#f7f9ff",
+                      "on-primary-container": "#ced9ff",
+                      "error": "#ba1a1a",
+                      "background": "#f7f9ff",
+                      "tertiary-container": "#974a00",
+                      "on-primary-fixed": "#001847",
+                      "secondary-fixed": "#97f3e2",
+                      "on-tertiary": "#ffffff",
+                      "on-secondary": "#ffffff",
+                      "on-secondary-fixed-variant": "#005047",
+                      "on-secondary-container": "#006f62",
+                      "on-error-container": "#93000a",
+                      "primary-fixed-dim": "#b2c5ff",
+                      "on-secondary-fixed": "#00201b",
+                      "tertiary-fixed": "#ffdcc6",
+                      "on-primary-fixed-variant": "#0040a1",
+                      "surface-container": "#ebeef4",
+                      "on-background": "#181c20",
+                      "primary-fixed": "#dae2ff",
+                      "primary-container": "#0b57d0",
+                      "on-surface-variant": "#424654",
+                      "on-primary": "#ffffff",
+                      "on-tertiary-fixed": "#311300",
+                      "secondary-fixed-dim": "#7ad7c6",
+                      "surface-bright": "#f7f9ff",
+                      "error-container": "#ffdad6",
+                      "surface-container-lowest": "#ffffff",
+                      "surface-tint": "#0856cf",
+                      "primary": "#0041a2",
+                      "surface-variant": "#dfe3e8",
+                      "on-tertiary-fixed-variant": "#723600",
+                      "inverse-surface": "#2d3135",
+                      "secondary": "#006b5e",
+                      "inverse-on-surface": "#eef1f7",
+                      "on-surface": "#181c20",
+                      "surface-container-highest": "#dfe3e8",
+                      "tertiary-fixed-dim": "#ffb786",
+                      "surface-container-low": "#f1f4fa",
+                      "surface-dim": "#d7dae0",
+                      "inverse-primary": "#b2c5ff",
+                      "tertiary": "#733700",
+                      "outline": "#737785",
+                      "on-tertiary-container": "#ffd1b4",
+                      "secondary-container": "#94f0df",
+                      "surface-container-high": "#e5e8ee",
+                      "outline-variant": "#c3c6d6"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "base": "4px",
+                      "margin-mobile": "16px",
+                      "lg": "24px",
+                      "gutter": "16px",
+                      "xs": "4px",
+                      "md": "16px",
+                      "margin-desktop": "32px",
+                      "sm": "8px",
+                      "xl": "32px"
+              },
+              "fontFamily": {
+                      "body-md": ["Inter"],
+                      "headline-lg": ["Inter"],
+                      "label-md": ["Inter"],
+                      "body-lg": ["Inter"],
+                      "headline-sm": ["Inter"],
+                      "display-lg": ["Inter"],
+                      "body-sm": ["Inter"],
+                      "headline-md": ["Inter"],
+                      "code-md": ["Courier Prime"]
+              },
+              "fontSize": {
+                      "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "headline-lg": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                      "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "headline-sm": ["18px", {"lineHeight": "26px", "fontWeight": "600"}],
+                      "display-lg": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                      "headline-md": ["22px", {"lineHeight": "30px", "fontWeight": "600"}],
+                      "code-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        /* Shared Components JSON instructions injected */
+        body { @apply bg-background text-on-background font-body-md; }
+    </style>
+</head>
+<body class="min-h-screen flex bg-background">
+<!-- SideNavBar Component -->
+<aside class="bg-surface dark:bg-surface-dim h-screen w-64 fixed left-0 top-0 border-r border-outline-variant dark:border-outline flex flex-col h-full py-lg px-md">
+<div class="flex items-center gap-sm mb-xl px-sm">
+<div class="h-10 w-10 bg-primary-container rounded-lg flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-primary-container" data-icon="local_hospital">local_hospital</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed">MedCore Systems</h1>
+<p class="font-label-md text-label-md text-on-surface-variant dark:text-surface-variant">Clinical Operations</p>
+</div>
+</div>
+<nav class="flex-1 space-y-sm overflow-y-auto">
+<a class="flex items-center gap-md px-sm py-sm rounded-md text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-md px-sm py-sm rounded-md text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-body-md text-body-md">Patients</span>
+</a>
+<a class="flex items-center gap-md px-sm py-sm rounded-md text-primary dark:text-primary-fixed-dim font-bold border-r-2 border-primary dark:border-primary-fixed-dim hover:bg-surface-container dark:hover:bg-surface-container-low transition-colors active-nav-scale" href="#">
+<span class="material-symbols-outlined" data-icon="group_add">group_add</span>
+<span class="font-body-md text-body-md">Queue</span>
+</a>
+<a class="flex items-center gap-md px-sm py-sm rounded-md text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="medical_services">medical_services</span>
+<span class="font-body-md text-body-md">Consultations</span>
+</a>
+<a class="flex items-center gap-md px-sm py-sm rounded-md text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="biotech">biotech</span>
+<span class="font-body-md text-body-md">Laboratory</span>
+</a>
+<a class="flex items-center gap-md px-sm py-sm rounded-md text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="medication">medication</span>
+<span class="font-body-md text-body-md">Pharmacy</span>
+</a>
+<a class="flex items-center gap-md px-sm py-sm rounded-md text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span class="font-body-md text-body-md">Inventory</span>
+</a>
+<a class="flex items-center gap-md px-sm py-sm rounded-md text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-body-md text-body-md">Billing</span>
+</a>
+<a class="flex items-center gap-md px-sm py-sm rounded-md text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="assessment">assessment</span>
+<span class="font-body-md text-body-md">Reports</span>
+</a>
+<a class="flex items-center gap-md px-sm py-sm rounded-md text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</a>
+</nav>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 flex-1 flex flex-col min-h-screen">
+<!-- TopNavBar Component -->
+<header class="bg-surface dark:bg-surface-dim docked full-width top-0 sticky z-50 border-b border-outline-variant dark:border-outline flex justify-between items-center w-full px-lg py-sm">
+<div class="flex items-center gap-md w-1/3">
+<div class="relative w-full max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent font-body-md text-body-md" placeholder="Search queue..." type="text">
+</div>
+</div>
+<div class="flex items-center justify-center w-1/3">
+<span class="font-headline-sm text-headline-sm font-bold text-primary dark:text-primary-fixed">MedCore Management</span>
+</div>
+<div class="flex items-center justify-end gap-md w-1/3">
+<button class="text-on-surface-variant hover:bg-surface-container-low p-2 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:bg-surface-container-low p-2 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+</button>
+<div class="h-8 w-8 rounded-full overflow-hidden bg-surface-container border border-outline-variant shrink-0 ml-sm">
+<img alt="Dr. Smith - Physician" class="w-full h-full object-cover" data-alt="A professional headshot of a male physician in a white medical coat, set against a clean, modern hospital background with soft, natural lighting. The mood is trustworthy and authoritative." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBbqzPco_w_I3gUywMYKGbzCezp4RhdZyEWWAazi5HWsP7LHtgOfJgcYvdDsY8lMPa5bbLjgcChAme3Hx0o-YccTL0YgQD_OFuAnTAiftAEl_GQDbUZg7w4DOYPJE7umXiF7Lu02FV_7OhXE1kfnNwJZVK3mLNSB28oTgsM2Nl7azx9FBso4pqSySpm-gkF0yRAZZqRcRwtkcfnEgvaK5nS6Zs5flpqC4SNlC7n23hpsZixgs2hGHDPww">
+</div>
+</div>
+</header>
+<!-- Canvas -->
+<div class="p-lg flex-1 bg-background">
+<div class="mb-lg flex justify-between items-end">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Queue Management</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-xs">Real-time patient flow and service assignment.</p>
+</div>
+<div class="flex gap-sm">
+<button class="px-md py-2 border border-primary text-primary font-label-md text-label-md rounded-md hover:bg-surface-container transition-colors">Refresh</button>
+<button class="px-md py-2 bg-primary text-on-primary font-label-md text-label-md rounded-md hover:bg-primary-fixed-variant transition-colors flex items-center gap-xs">
+<span class="material-symbols-outlined text-[16px]" data-icon="add">add</span>
+                        New Walk-in
+                    </button>
+</div>
+</div>
+<!-- Data Table Card -->
+<div class="bg-surface rounded-lg border border-outline-variant overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-low border-b border-outline-variant font-label-md text-label-md text-on-surface-variant">
+<tr>
+<th class="py-3 px-md font-semibold">Queue #</th>
+<th class="py-3 px-md font-semibold">Patient Name</th>
+<th class="py-3 px-md font-semibold">Reg Time</th>
+<th class="py-3 px-md font-semibold">Assigned Doctor</th>
+<th class="py-3 px-md font-semibold">Service Type</th>
+<th class="py-3 px-md font-semibold">Status</th>
+<th class="py-3 px-md font-semibold text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="font-body-sm text-body-sm text-on-surface divide-y divide-outline-variant">
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="py-2 px-md font-code-md text-code-md font-semibold">Q-101</td>
+<td class="py-2 px-md font-semibold">Sarah Jenkins</td>
+<td class="py-2 px-md text-on-surface-variant">08:30</td>
+<td class="py-2 px-md">Dr. Smith</td>
+<td class="py-2 px-md">Consultation</td>
+<td class="py-2 px-md">
+<span class="inline-flex items-center px-2 py-1 rounded-full bg-primary-container text-on-primary-container font-label-md text-[10px] leading-tight">
+                                        In Consultation
+                                    </span>
+</td>
+<td class="py-2 px-md text-right opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-primary hover:text-primary-fixed-variant p-1"><span class="material-symbols-outlined text-[18px]" data-icon="more_vert">more_vert</span></button>
+</td>
+</tr>
+<tr class="bg-surface-container-lowest hover:bg-surface transition-colors group">
+<td class="py-2 px-md font-code-md text-code-md font-semibold">Q-102</td>
+<td class="py-2 px-md font-semibold">Michael Chen</td>
+<td class="py-2 px-md text-on-surface-variant">08:45</td>
+<td class="py-2 px-md">Dr. Aris</td>
+<td class="py-2 px-md">Consultation</td>
+<td class="py-2 px-md">
+<span class="inline-flex items-center px-2 py-1 rounded-full bg-surface-variant text-on-surface-variant font-label-md text-[10px] leading-tight">
+                                        Waiting
+                                    </span>
+</td>
+<td class="py-2 px-md text-right opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-primary hover:text-primary-fixed-variant p-1"><span class="material-symbols-outlined text-[18px]" data-icon="more_vert">more_vert</span></button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="py-2 px-md font-code-md text-code-md font-semibold">Q-103</td>
+<td class="py-2 px-md font-semibold">Robert Wilson</td>
+<td class="py-2 px-md text-on-surface-variant">09:00</td>
+<td class="py-2 px-md">Dr. Smith</td>
+<td class="py-2 px-md">Consultation</td>
+<td class="py-2 px-md">
+<span class="inline-flex items-center px-2 py-1 rounded-full bg-surface-variant text-on-surface-variant font-label-md text-[10px] leading-tight">
+                                        Waiting
+                                    </span>
+</td>
+<td class="py-2 px-md text-right opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-primary hover:text-primary-fixed-variant p-1"><span class="material-symbols-outlined text-[18px]" data-icon="more_vert">more_vert</span></button>
+</td>
+</tr>
+<tr class="bg-surface-container-lowest hover:bg-surface transition-colors group">
+<td class="py-2 px-md font-code-md text-code-md font-semibold">Q-104</td>
+<td class="py-2 px-md font-semibold">Emily Davis</td>
+<td class="py-2 px-md text-on-surface-variant">09:10</td>
+<td class="py-2 px-md">Dr. Lee</td>
+<td class="py-2 px-md">Lab Test</td>
+<td class="py-2 px-md">
+<span class="inline-flex items-center px-2 py-1 rounded-full bg-secondary-container text-on-secondary-container font-label-md text-[10px] leading-tight">
+                                        Called
+                                    </span>
+</td>
+<td class="py-2 px-md text-right opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-primary hover:text-primary-fixed-variant p-1"><span class="material-symbols-outlined text-[18px]" data-icon="more_vert">more_vert</span></button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-md py-sm border-t border-outline-variant bg-surface-container-low flex justify-between items-center">
+<span class="font-body-sm text-body-sm text-on-surface-variant">Showing 4 of 24 patients</span>
+<div class="flex gap-xs">
+<button class="p-1 text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-50" disabled=""><span class="material-symbols-outlined text-[20px]" data-icon="chevron_left">chevron_left</span></button>
+<button class="p-1 text-on-surface-variant hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-[20px]" data-icon="chevron_right">chevron_right</span></button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<style>
+        .active-nav-scale {
+            transform: scale(0.98);
+            transition: all 200ms;
+        }
+    </style>
+</body></html>

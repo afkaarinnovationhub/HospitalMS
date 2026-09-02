@@ -1,0 +1,214 @@
+<?php
+/**
+ * MedCore Systems - Staff Sign In Page
+ */
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/../CONFIG/database.php';
+require_once __DIR__ . '/../CONFIG/session.php';
+require_once __DIR__ . '/../CONFIG/security.php';
+require_once __DIR__ . '/../CONFIG/auth.php';
+require_once __DIR__ . '/../OPERATIONS/UserOperation.php';
+require_once __DIR__ . '/../CONTROLS/AuthController.php';
+
+initSecureSession();
+
+// Seed initial test users if the database is newly initialized
+try {
+    UserOperation::seedDefaultUsersIfEmpty();
+} catch (Exception $e) {
+    error_log('[HPMS SEED ERROR] ' . $e->getMessage());
+}
+
+$errorMessage = null;
+$successMessage = getFlashMessage('success');
+
+if (isset($_GET['logged_out'])) {
+    $successMessage = 'You have been logged out securely.';
+}
+
+if (isset($_GET['registered'])) {
+    $successMessage = 'Registration successful! Your staff account has been created. Please sign in.';
+}
+
+$flashError = getFlashMessage('error');
+if ($flashError) {
+    $errorMessage = $flashError;
+}
+
+// 1. If POST request, process new authentication attempt
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+    $result = AuthController::login($_POST);
+    if (isset($result['error'])) {
+        $errorMessage = $result['error'];
+    }
+} elseif (isLoggedIn() && !isset($_GET['logged_out'])) {
+    // 2. If GET request and already logged in, redirect to active session dashboard
+    $currentUser = getCurrentUser();
+    safeRedirect(getRoleDefaultPage($currentUser['role'] ?? ''));
+}
+?>
+<!DOCTYPE html>
+<html class="h-full" lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+    <title>Login - MedCore Systems</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface": "#f7f9ff",
+                        "primary": "#0041a2",
+                        "primary-container": "#0b57d0",
+                        "on-primary": "#ffffff",
+                        "on-surface": "#181c20",
+                        "on-surface-variant": "#424654",
+                        "background": "#f7f9ff",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-low": "#f1f4fa",
+                        "outline": "#737785",
+                        "outline-variant": "#c3c6d6",
+                        "primary-fixed": "#dae2ff",
+                        "error": "#ba1a1a",
+                        "error-container": "#ffdad6",
+                        "on-error-container": "#93000a",
+                        "secondary": "#006b5e",
+                        "secondary-fixed": "#97f3e2",
+                        "on-secondary-fixed-variant": "#005047"
+                    },
+                    "fontFamily": {
+                        "body": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-surface-container-low via-background to-primary-fixed/20 text-on-surface font-body min-h-screen flex items-center justify-center p-4">
+
+    <div class="max-w-md w-full my-auto">
+        <!-- Brand Header -->
+        <div class="text-center mb-6">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary text-on-primary shadow-lg shadow-primary/20 mb-3">
+                <span class="material-symbols-outlined text-[36px] fill">local_hospital</span>
+            </div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-primary tracking-tight">MedCore Systems</h1>
+            <p class="text-xs sm:text-sm text-on-surface-variant mt-1">Clinical Operations &amp; Hospital Management</p>
+        </div>
+
+        <!-- Clean Login Card -->
+        <div class="bg-surface-container-lowest border border-outline-variant/80 rounded-2xl shadow-xl p-6 sm:p-8">
+            <h2 class="text-lg font-bold text-on-surface mb-1">Sign In</h2>
+            <p class="text-xs text-on-surface-variant mb-5">Enter your credentials to access your clinical dashboard.</p>
+
+            <!-- Error Banner -->
+            <?php if (!empty($errorMessage)): ?>
+                <div class="mb-4 p-3 rounded-lg bg-error-container border border-error/30 text-on-error-container text-xs flex items-start gap-2">
+                    <span class="material-symbols-outlined text-[18px] text-error shrink-0 mt-0.5">error</span>
+                    <div>
+                        <p class="font-bold">Authentication Notice</p>
+                        <p class="mt-0.5"><?php echo e($errorMessage); ?></p>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <!-- Success Banner -->
+            <?php if (!empty($successMessage)): ?>
+                <div class="mb-4 p-3 rounded-lg bg-secondary-fixed/40 border border-secondary/30 text-on-secondary-fixed-variant text-xs flex items-start gap-2">
+                    <span class="material-symbols-outlined text-[18px] text-secondary shrink-0 mt-0.5">check_circle</span>
+                    <div>
+                        <p class="font-bold">Notice</p>
+                        <p class="mt-0.5"><?php echo e($successMessage); ?></p>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <form method="POST" action="login.php" class="space-y-4">
+                <!-- CSRF Token Hidden Input -->
+                <?php echo csrfField(); ?>
+
+                <!-- 1. Email or Username Input -->
+                <div>
+                    <label class="block text-xs font-semibold text-on-surface-variant mb-1.5" for="login-username">Email or Username</label>
+                    <div class="relative">
+                        <input id="login-username" name="username_or_email" class="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 pl-10 pr-3 text-xs sm:text-sm text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors" placeholder="e.g. admin or admin@medcore.org" required type="text" value="<?php echo e($_POST['username_or_email'] ?? ''); ?>" autocomplete="username">
+                        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px] pointer-events-none">person</span>
+                    </div>
+                </div>
+
+                <!-- 2. Password Input -->
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-xs font-semibold text-on-surface-variant" for="login-password">Password</label>
+                        <a href="javascript:void(0)" onclick="alert('Please contact your ICT Administrator to reset your clinical credentials.');" class="text-xs text-primary hover:underline font-medium">Forgot?</a>
+                    </div>
+                    <div class="relative">
+                        <input id="login-password" name="password" class="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 pl-10 pr-10 text-xs sm:text-sm text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors" placeholder="Enter your password" required type="password" autocomplete="current-password">
+                        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px] pointer-events-none">lock</span>
+                        <button type="button" onclick="togglePasswordVisibility()" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-1 cursor-pointer" title="Toggle password visibility" aria-label="Toggle password visibility">
+                            <span id="pwd-icon" class="material-symbols-outlined text-[18px]">visibility</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sign In Button -->
+                <button type="submit" class="w-full bg-primary hover:bg-primary-container text-on-primary font-semibold text-sm py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer mt-2">
+                    <span class="material-symbols-outlined text-[18px]">login</span>
+                    Sign In
+                </button>
+            </form>
+
+            <!-- Test Accounts Quick Reference Tooltip / Panel -->
+            <div class="mt-5 pt-4 border-t border-outline-variant/60 text-[11px] text-on-surface-variant">
+                <p class="font-semibold text-on-surface mb-1 flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[14px] text-primary">info</span>
+                    Default Accounts (Password: <code>password123</code>):
+                </p>
+                <div class="grid grid-cols-2 gap-x-2 gap-y-0.5 font-mono text-[10px] text-on-surface-variant/90">
+                    <span>Admin: admin</span>
+                    <span>Doctor: doctor_alan</span>
+                    <span>Reception: reception</span>
+                    <span>Pharmacy: pharmacy</span>
+                    <span>Lab: lab_tech</span>
+                    <span>Manager: manager</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Registration Link -->
+        <p class="text-center text-xs text-on-surface-variant mt-5">
+            Don't have an account?
+            <a href="register.php" class="text-primary font-bold hover:underline ml-1">Sign Up</a>
+        </p>
+    </div>
+
+    <script>
+        function togglePasswordVisibility() {
+            const pwdInput = document.getElementById('login-password');
+            const icon = document.getElementById('pwd-icon');
+            if (pwdInput.type === 'password') {
+                pwdInput.type = 'text';
+                icon.textContent = 'visibility_off';
+            } else {
+                pwdInput.type = 'password';
+                icon.textContent = 'visibility';
+            }
+        }
+    </script>
+</body>
+</html>
