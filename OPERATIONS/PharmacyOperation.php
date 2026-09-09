@@ -212,7 +212,10 @@ class PharmacyOperation
                 ]);
             }
 
-            // 3. Deduct ONLY the physically dispensed quantities from medications & batches
+            // 3. Generate Pharmacy Invoice/Sale Reference Number
+            $invoiceNumber = 'PHARM-RX-' . date('Y') . '-' . str_pad((string)$prescriptionId, 4, '0', STR_PAD_LEFT) . '-' . substr(uniqid(), -3);
+
+            // 4. Deduct ONLY the physically dispensed quantities from medications & batches using FIFO
             $stmtUpdateItem = $pdo->prepare("
                 UPDATE prescription_items 
                 SET quantity_dispensed = quantity_dispensed + :qty_disp,
@@ -220,8 +223,15 @@ class PharmacyOperation
                 WHERE id = :item_id
             ");
 
+            $totalDispensedCost = 0.0;
             foreach ($itemsToDispense as $dispItem) {
-                self::deductMedicationStock($pdo, $dispItem['medication_id'], $dispItem['qty_to_dispense']);
+                $totalDispensedCost += self::deductMedicationStock(
+                    $pdo, 
+                    $dispItem['medication_id'], 
+                    $dispItem['qty_to_dispense'], 
+                    $invoiceNumber, 
+                    $dispensedBy
+                );
 
                 $stmtUpdateItem->execute([
                     ':qty_disp'  => $dispItem['qty_to_dispense'],
@@ -230,7 +240,7 @@ class PharmacyOperation
                 ]);
             }
 
-            // 4. Determine new prescription status (all remaining == 0 => dispensed, else partially_dispensed)
+            // 5. Determine new prescription status (all remaining == 0 => dispensed, else partially_dispensed)
             $stmtCheckRemaining = $pdo->prepare("
                 SELECT SUM(quantity_remaining) 
                 FROM prescription_items 
@@ -256,8 +266,7 @@ class PharmacyOperation
                 ':id'      => $prescriptionId,
             ]);
 
-            // 5. Create Pharmacy Sale Record for this Dispensing Event
-            $invoiceNumber = 'PHARM-RX-' . date('Y') . '-' . str_pad((string)$prescriptionId, 4, '0', STR_PAD_LEFT) . '-' . substr(uniqid(), -3);
+            // 6. Create Pharmacy Sale Record for this Dispensing Event
             $stmtSale = $pdo->prepare("
                 INSERT INTO pharmacy_sales (invoice_number, sale_type, prescription_id, customer_name, customer_phone, total_amount, discount_amount, credit_applied, net_amount, paid_amount, due_amount, payment_status, cashier_id)
                 VALUES (:inv, 'prescription', :rx_id, :cust_name, :phone, :total, :discount, :credit_applied, :net, :paid, :due, :status, :cashier)
@@ -349,16 +358,26 @@ class PharmacyOperation
                         $creditToUse,
                         'credit',
                         "Prescription Credit Settlement [{$prescription['rx_number']}]",
-                        $dispensedBy
+                        $dispensedBy,
+                        $totalDispensedCost
                     );
-                }
-                if ($paid > 0) {
+                    if ($paid > 0) {
+                        BillingOperation::processInvoicePayment(
+                            $invoiceId,
+                            $paid,
+                            $paymentMethod ?: 'cash',
+                            "Prescription Fulfillment [{$prescription['rx_number']}]",
+                            $dispensedBy
+                        );
+                    }
+                } else {
                     BillingOperation::processInvoicePayment(
                         $invoiceId,
                         $paid,
-                        $paymentMethod,
+                        $paymentMethod ?: 'cash',
                         "Prescription Fulfillment [{$prescription['rx_number']}]",
-                        $dispensedBy
+                        $dispensedBy,
+                        $totalDispensedCost
                     );
                 }
             } catch (Exception $e) {
@@ -453,17 +472,22 @@ class PharmacyOperation
                 $paymentStatus = 'credit';
             }
 
-            if ($paymentStatus !== 'paid' && empty($customerPhone)) {
-                throw new InvalidArgumentException('Customer phone number is required when extending credit or partial debt.');
-            }
-
-            // 3. Deduct stock
-            foreach ($validatedItems as $vItem) {
-                self::deductMedicationStock($pdo, $vItem['medication_id'], $vItem['quantity']);
-            }
-
-            // 4. Create Sale Record
+            // 3. Generate POS Invoice / Sale Reference Number
             $invoiceNumber = 'POS-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -5));
+
+            // 4. Deduct stock & compute exact batch FIFO COGS
+            $totalCostPrice = 0.0;
+            foreach ($validatedItems as $vItem) {
+                $totalCostPrice += self::deductMedicationStock(
+                    $pdo, 
+                    $vItem['medication_id'], 
+                    $vItem['quantity'], 
+                    $invoiceNumber, 
+                    $cashierId
+                );
+            }
+
+            // 5. Create Sale Record
             $stmtSale = $pdo->prepare("
                 INSERT INTO pharmacy_sales (invoice_number, sale_type, customer_name, customer_phone, total_amount, discount_amount, net_amount, paid_amount, due_amount, payment_status, cashier_id)
                 VALUES (:inv, 'walk_in', :cust_name, :phone, :total, :discount, :net, :paid, :due, :status, :cashier)
@@ -497,15 +521,7 @@ class PharmacyOperation
                 ]);
             }
 
-            // 6. Calculate Total Cost Price for COGS & Inventory Asset reduction
-            $totalCostPrice = 0.0;
-            foreach ($validatedItems as $vItem) {
-                $medRec = InventoryOperation::getMedicationById($vItem['medication_id']);
-                $itemCost = (float)($medRec['cost_price'] ?? 0);
-                $totalCostPrice += ($itemCost * $vItem['quantity']);
-            }
-
-            // 7. Record Initial Payment (if any)
+            // 6. Record Initial Payment (if any)
             if ($paidAmount > 0) {
                 $stmtPay = $pdo->prepare("
                     INSERT INTO sale_payments (sale_id, amount_paid, payment_method, notes, received_by)
@@ -519,12 +535,12 @@ class PharmacyOperation
                 ]);
             }
 
-            // 8. Auto-Sync Unified Invoice into Billing Hub
+            // 7. Auto-Sync Unified Invoice into Billing Hub and Post Option A GL Accrual + COGS
             require_once __DIR__ . '/BillingOperation.php';
             try {
                 $stmtInv = $pdo->prepare("
                     INSERT INTO invoices (invoice_number, bill_type, customer_name, customer_phone, subtotal, discount, net_total, paid_amount, due_amount, payment_method, payment_status, cashier_id, paid_at)
-                    VALUES (:inv, 'walk_in', :cust, :phone, :sub, :disc, :net, :paid, :due, :method, :status, :cashier, :paid_at)
+                    VALUES (:inv, 'walk_in', :cust, :phone, :sub, :disc, :net, 0.00, :due, :method, 'pending', :cashier, NULL)
                 ");
                 $stmtInv->execute([
                     ':inv'     => $invoiceNumber,
@@ -533,12 +549,9 @@ class PharmacyOperation
                     ':sub'     => $totalAmount,
                     ':disc'    => $discountAmount,
                     ':net'     => $netAmount,
-                    ':paid'    => $paidAmount,
-                    ':due'     => $dueAmount,
+                    ':due'     => $netAmount,
                     ':method'  => $paymentMethod,
-                    ':status'  => $paymentStatus,
                     ':cashier' => $cashierId,
-                    ':paid_at' => $paidAmount > 0 ? date('Y-m-d H:i:s') : null,
                 ]);
                 $invoiceId = (int)$pdo->lastInsertId();
 
@@ -557,81 +570,18 @@ class PharmacyOperation
                         ':total'  => $vItem['total_price'],
                     ]);
                 }
+
+                // Shared Option A Accrual & COGS posting logic via unified BillingOperation
+                BillingOperation::processInvoicePayment(
+                    $invoiceId,
+                    $paidAmount,
+                    $paymentMethod,
+                    "POS Walk-in Pharmacy Sale: {$invoiceNumber} - " . ($customerName ?: 'Walk-in Customer'),
+                    $cashierId,
+                    $totalCostPrice
+                );
             } catch (Exception $e) {
-                error_log('[HPMS POS INVOICE SYNC ERROR] ' . $e->getMessage());
-            }
-
-            // 9. Post Balanced Double-Entry Journal Entry to General Ledger
-            require_once __DIR__ . '/AccountingOperation.php';
-            try {
-                AccountingOperation::seedChartOfAccountsIfEmpty();
-                $cashAccCode = match ($paymentMethod) {
-                    'mobile' => '1020',
-                    'bank', 'card' => '1030',
-                    default => '1010',
-                };
-                $cashAcc = AccountingOperation::getAccountByCode($cashAccCode);
-                $arAcc   = AccountingOperation::getAccountByCode('1100'); // Accounts Receivable - Patients
-                $revAcc  = AccountingOperation::getAccountByCode('4010'); // Pharmacy Sales Revenue
-                $cogsAcc = AccountingOperation::getAccountByCode('5010'); // Cost of Dispensed Medications
-                $invAcc  = AccountingOperation::getAccountByCode('1200'); // Pharmacy Inventory Asset
-
-                $journalLines = [];
-
-                // A. Revenue Recognition & Payment / Receivable ($netAmount)
-                if ($paidAmount > 0 && $cashAcc) {
-                    $journalLines[] = [
-                        'account_id' => (int)$cashAcc['id'],
-                        'debit'      => $paidAmount,
-                        'credit'     => 0.00,
-                        'memo'       => "POS Cash collected for sale {$invoiceNumber}",
-                    ];
-                }
-                if ($dueAmount > 0 && $arAcc) {
-                    $journalLines[] = [
-                        'account_id' => (int)$arAcc['id'],
-                        'debit'      => $dueAmount,
-                        'credit'     => 0.00,
-                        'memo'       => "POS Patient Credit (AR) for sale {$invoiceNumber} ({$customerName})",
-                    ];
-                }
-                if ($netAmount > 0 && $revAcc) {
-                    $journalLines[] = [
-                        'account_id' => (int)$revAcc['id'],
-                        'debit'      => 0.00,
-                        'credit'     => $netAmount,
-                        'memo'       => "Pharmacy Sales Revenue for POS sale {$invoiceNumber}",
-                    ];
-                }
-
-                // B. Inventory Cost Depletion (COGS)
-                if ($totalCostPrice > 0 && $cogsAcc && $invAcc) {
-                    $journalLines[] = [
-                        'account_id' => (int)$cogsAcc['id'],
-                        'debit'      => $totalCostPrice,
-                        'credit'     => 0.00,
-                        'memo'       => "Cost of Goods Sold (COGS) for POS sale {$invoiceNumber}",
-                    ];
-                    $journalLines[] = [
-                        'account_id' => (int)$invAcc['id'],
-                        'debit'      => 0.00,
-                        'credit'     => $totalCostPrice,
-                        'memo'       => "Inventory Asset reduction for POS sale {$invoiceNumber}",
-                    ];
-                }
-
-                if (!empty($journalLines)) {
-                    AccountingOperation::recordJournalEntry(
-                        date('Y-m-d'),
-                        'pharmacy_sale',
-                        $saleId,
-                        "POS Walk-in Pharmacy Sale: {$invoiceNumber} - {$customerName}",
-                        $journalLines,
-                        $cashierId
-                    );
-                }
-            } catch (Exception $e) {
-                error_log('[HPMS POS GL SYNC ERROR] ' . $e->getMessage());
+                error_log('[HPMS POS INVOICE & GL SYNC ERROR] ' . $e->getMessage());
             }
 
             $pdo->commit();
@@ -828,15 +778,131 @@ class PharmacyOperation
     }
 
     /**
-     * Deducts quantity from medication master stock and batch levels using FIFO.
+     * Deducts quantity from medication batch levels using strict FIFO costing
+     * (Option A: earliest expiry date first, falling back to earliest received date).
+     * 
+     * Records an audit movement in medicine_batch_movements for each batch drawn from.
+     * Calculates and returns the exact Cost of Goods Sold (COGS) across batches.
+     * Rejects sale with a clear RuntimeException if unexpired active batch stock is insufficient.
      *
      * @param PDO $pdo
      * @param int $medicationId
      * @param int $quantityToDeduct
+     * @param string|null $referenceTransactionId
+     * @param int|null $userId
+     * @return float Total Cost of Goods Sold (COGS) for the deducted units
      */
-    private static function deductMedicationStock(PDO $pdo, int $medicationId, int $quantityToDeduct): void
-    {
-        // 1. Decrement overall stock in medications table
+    public static function deductMedicationStock(
+        PDO $pdo, 
+        int $medicationId, 
+        int $quantityToDeduct, 
+        ?string $referenceTransactionId = null, 
+        ?int $userId = null
+    ): float {
+        if ($quantityToDeduct <= 0) {
+            return 0.0;
+        }
+
+        // 1. Fetch all active batches for this medication ordered by confirmed Option A FIFO:
+        // Expiry date ASC (earliest expiry first), falling back to received date ASC, then id ASC
+        $stmtBatches = $pdo->prepare("
+            SELECT id, batch_number, quantity_remaining, unit_cost, cost_price, expiry_date, received_date
+            FROM medicine_batches
+            WHERE medication_id = :med_id 
+              AND status = 'active' 
+              AND quantity_remaining > 0
+            ORDER BY 
+              CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END ASC, 
+              expiry_date ASC, 
+              received_date ASC, 
+              id ASC
+            FOR UPDATE
+        ");
+        $stmtBatches->execute([':med_id' => $medicationId]);
+        $batches = $stmtBatches->fetchAll(PDO::FETCH_ASSOC);
+
+        // 2. Validate sufficient unexpired batch inventory (Rule 6: Never allow negative inventory)
+        $totalBatchStock = 0;
+        foreach ($batches as $b) {
+            $totalBatchStock += (int)$b['quantity_remaining'];
+        }
+
+        if ($totalBatchStock < $quantityToDeduct) {
+            $stmtName = $pdo->prepare("SELECT name FROM medications WHERE id = ?");
+            $stmtName->execute([$medicationId]);
+            $medName = $stmtName->fetchColumn() ?: "Medication #{$medicationId}";
+
+            throw new RuntimeException(sprintf(
+                'Insufficient unexpired batch stock for "%s". Requested: %d units, Available in active batches: %d units. Sale rejected to prevent negative inventory.',
+                $medName,
+                $quantityToDeduct,
+                $totalBatchStock
+            ));
+        }
+
+        // 3. Draw from oldest unexpired batch first (FIFO)
+        $remainingToDeduct = $quantityToDeduct;
+        $totalCost = 0.0;
+
+        $stmtUpdateBatch = $pdo->prepare("
+            UPDATE medicine_batches 
+            SET quantity_remaining = :qty, 
+                status = :status 
+            WHERE id = :id
+        ");
+
+        $stmtMovement = $pdo->prepare("
+            INSERT INTO medicine_batch_movements (
+                batch_id, movement_type, quantity, unit_cost, total_cost, reference_transaction_id, notes, created_by
+            )
+            VALUES (
+                :batch_id, 'dispense', :quantity, :unit_cost, :total_cost, :ref_tx, :notes, :created_by
+            )
+        ");
+
+        foreach ($batches as $batch) {
+            if ($remainingToDeduct <= 0) {
+                break;
+            }
+
+            $batchQty = (int)$batch['quantity_remaining'];
+            $batchCost = (float)($batch['unit_cost'] > 0 ? $batch['unit_cost'] : $batch['cost_price']);
+            $batchId = (int)$batch['id'];
+
+            if ($batchQty <= $remainingToDeduct) {
+                $drawQty = $batchQty;
+                $newRemaining = 0;
+                $newStatus = 'depleted';
+            } else {
+                $drawQty = $remainingToDeduct;
+                $newRemaining = $batchQty - $remainingToDeduct;
+                $newStatus = 'active';
+            }
+
+            $lineCost = round($drawQty * $batchCost, 2);
+            $totalCost += $lineCost;
+            $remainingToDeduct -= $drawQty;
+
+            // Update batch quantity and status
+            $stmtUpdateBatch->execute([
+                ':qty'    => $newRemaining,
+                ':status' => $newStatus,
+                ':id'     => $batchId,
+            ]);
+
+            // Record audit movement for this specific batch slice
+            $stmtMovement->execute([
+                ':batch_id'    => $batchId,
+                ':quantity'    => $drawQty,
+                ':unit_cost'   => $batchCost,
+                ':total_cost'  => $lineCost,
+                ':ref_tx'      => $referenceTransactionId,
+                ':notes'       => "Dispensed {$drawQty} units (Batch {$batch['batch_number']})",
+                ':created_by'  => $userId,
+            ]);
+        }
+
+        // 4. Update physical on-hand stock in medications table to stay in sync
         $stmtMed = $pdo->prepare("
             UPDATE medications 
             SET current_stock = GREATEST(0, current_stock - :qty)
@@ -857,32 +923,182 @@ class PharmacyOperation
             WHERE id = ?
         ")->execute([$medicationId]);
 
-        // 2. Deduct from batches using FIFO (earliest expiry first)
-        $stmtBatches = $pdo->prepare("
-            SELECT id, quantity_remaining 
-            FROM medicine_batches 
-            WHERE medication_id = :med_id AND quantity_remaining > 0 
-            ORDER BY expiry_date ASC
-            FOR UPDATE
+        return round($totalCost, 2);
+    }
+
+    /**
+     * Built-in reconciliation check: verifies that General Ledger Account 1200 
+     * (Pharmacy Inventory Asset) equals SUM(quantity_remaining × unit_cost) across all active batches.
+     *
+     * @return array
+     */
+    public static function reconcileInventoryAssetWithBatches(): array
+    {
+        $pdo = getDBConnection();
+
+        // 1. Active batches valuation
+        $stmtBatches = $pdo->query("
+            SELECT 
+                COALESCE(SUM(quantity_remaining * CASE WHEN unit_cost > 0 THEN unit_cost ELSE cost_price END), 0) AS total_batch_value,
+                COALESCE(SUM(quantity_remaining), 0) AS total_batch_quantity,
+                COUNT(*) AS total_active_batches
+            FROM medicine_batches
+            WHERE status = 'active' AND quantity_remaining > 0
         ");
-        $stmtBatches->execute([':med_id' => $medicationId]);
-        $batches = $stmtBatches->fetchAll();
+        $batchRow = $stmtBatches->fetch(PDO::FETCH_ASSOC);
+        $batchValuation     = round((float)($batchRow['total_batch_value'] ?? 0.0), 2);
+        $batchQuantity      = (int)($batchRow['total_batch_quantity'] ?? 0);
+        $activeBatchesCount = (int)($batchRow['total_active_batches'] ?? 0);
 
-        $remainingToDeduct = $quantityToDeduct;
-        $stmtUpdateBatch = $pdo->prepare("UPDATE medicine_batches SET quantity_remaining = :qty WHERE id = :id");
+        // 2. General Ledger Account 1200 balance: SUM(debit - credit)
+        $stmtGL = $pdo->query("
+            SELECT COALESCE(SUM(ji.debit - ji.credit), 0) AS gl_balance
+            FROM journal_items ji
+            JOIN chart_of_accounts a ON ji.account_id = a.id
+            WHERE a.account_code = '1200'
+        ");
+        $glBalance = round((float)$stmtGL->fetchColumn(), 2);
 
-        foreach ($batches as $batch) {
-            if ($remainingToDeduct <= 0) break;
+        $discrepancy = round($glBalance - $batchValuation, 2);
+        $isReconciled = (abs($discrepancy) < 0.01);
 
-            $batchQty = (int)$batch['quantity_remaining'];
-            if ($batchQty <= $remainingToDeduct) {
-                $stmtUpdateBatch->execute([':qty' => 0, ':id' => $batch['id']]);
-                $remainingToDeduct -= $batchQty;
-            } else {
-                $stmtUpdateBatch->execute([':qty' => $batchQty - $remainingToDeduct, ':id' => $batch['id']]);
-                $remainingToDeduct = 0;
-            }
+        // 3. Detailed per-medication breakdown
+        $stmtMeds = $pdo->query("
+            SELECT 
+                m.id,
+                m.med_code,
+                m.name,
+                m.current_stock,
+                COALESCE(b.batch_qty, 0) AS batch_qty,
+                COALESCE(b.batch_value, 0.00) AS batch_value
+            FROM medications m
+            LEFT JOIN (
+                SELECT 
+                    medication_id,
+                    SUM(quantity_remaining) AS batch_qty,
+                    SUM(quantity_remaining * CASE WHEN unit_cost > 0 THEN unit_cost ELSE cost_price END) AS batch_value
+                FROM medicine_batches
+                WHERE status = 'active' AND quantity_remaining > 0
+                GROUP BY medication_id
+            ) b ON m.id = b.medication_id
+            ORDER BY m.name ASC
+        ");
+        $medications = $stmtMeds->fetchAll(PDO::FETCH_ASSOC);
+
+        return [
+            'account_code'              => '1200',
+            'account_name'              => 'Pharmacy Inventory Asset',
+            'gl_balance'                => $glBalance,
+            'gl_inventory_balance'      => $glBalance,
+            'batch_valuation'           => $batchValuation,
+            'batch_inventory_valuation' => $batchValuation,
+            'batch_quantity'            => $batchQuantity,
+            'active_batches_count'      => $activeBatchesCount,
+            'discrepancy'               => $discrepancy,
+            'is_reconciled'             => $isReconciled,
+            'breakdown'                 => $medications,
+        ];
+    }
+
+    /**
+     * Retrieves active batches for a given medication ordered by FIFO.
+     *
+     * @param int $medicationId
+     * @return array
+     */
+    public static function getActiveBatchesByMedication(int $medicationId): array
+    {
+        $pdo = getDBConnection();
+        $stmt = $pdo->prepare("
+            SELECT 
+                b.*,
+                DATEDIFF(b.expiry_date, CURDATE()) AS days_to_expiry,
+                ROUND(b.quantity_remaining * CASE WHEN b.unit_cost > 0 THEN b.unit_cost ELSE b.cost_price END, 2) AS batch_value
+            FROM medicine_batches b
+            WHERE b.medication_id = ? AND b.status = 'active' AND b.quantity_remaining > 0
+            ORDER BY 
+              CASE WHEN b.expiry_date IS NULL THEN 1 ELSE 0 END ASC, 
+              b.expiry_date ASC, 
+              b.received_date ASC, 
+              b.id ASC
+        ");
+        $stmt->execute([$medicationId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Retrieves all batches across the system with optional status filter.
+     *
+     * @param string|null $status
+     * @return array
+     */
+    public static function getAllBatches(?string $status = null): array
+    {
+        $pdo = getDBConnection();
+        $where = $status ? "WHERE b.status = :status" : "";
+        $sql = "
+            SELECT 
+                b.*,
+                m.name AS medication_name,
+                m.med_code,
+                m.dosage_form,
+                s.name AS supplier_name,
+                DATEDIFF(b.expiry_date, CURDATE()) AS days_to_expiry,
+                ROUND(b.quantity_remaining * CASE WHEN b.unit_cost > 0 THEN b.unit_cost ELSE b.cost_price END, 2) AS batch_value
+            FROM medicine_batches b
+            JOIN medications m ON b.medication_id = m.id
+            LEFT JOIN suppliers s ON b.supplier_id = s.id
+            {$where}
+            ORDER BY b.expiry_date ASC, b.received_date ASC, b.id ASC
+        ";
+        $stmt = $pdo->prepare($sql);
+        if ($status) {
+            $stmt->execute([':status' => $status]);
+        } else {
+            $stmt->execute();
         }
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Retrieves audit movements for a batch or transaction.
+     *
+     * @param int|null $batchId
+     * @param string|null $refId
+     * @return array
+     */
+    public static function getBatchMovements(?int $batchId = null, ?string $refId = null): array
+    {
+        $pdo = getDBConnection();
+        $conditions = [];
+        $params = [];
+
+        if ($batchId) {
+            $conditions[] = "m.batch_id = :bid";
+            $params[':bid'] = $batchId;
+        }
+        if ($refId) {
+            $conditions[] = "m.reference_transaction_id = :ref";
+            $params[':ref'] = $refId;
+        }
+
+        $where = !empty($conditions) ? "WHERE " . implode(' AND ', $conditions) : "";
+        $sql = "
+            SELECT 
+                m.*,
+                b.batch_number,
+                med.name AS medication_name,
+                u.full_name AS user_name
+            FROM medicine_batch_movements m
+            JOIN medicine_batches b ON m.batch_id = b.id
+            JOIN medications med ON b.medication_id = med.id
+            LEFT JOIN users u ON m.created_by = u.id
+            {$where}
+            ORDER BY m.created_at DESC
+        ";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**
@@ -891,21 +1107,16 @@ class PharmacyOperation
     public static function seedDefaultPrescriptionsIfEmpty(): void
     {
         $pdo = getDBConnection();
-
         try {
-            $isSeeded = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'prescriptions_seeded'")->fetchColumn();
-            if ($isSeeded === '1') {
-                return; // Already initialized once. Never auto-reseed if user deleted records!
-            }
+            $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES ('prescriptions_seeded', '1') ON DUPLICATE KEY UPDATE setting_value = '1'")->execute();
         } catch (Exception $e) {}
+        return; // Strictly production mode: Never seed mock prescriptions.
+    }
 
-        $rxCount = (int)$pdo->query("SELECT COUNT(*) FROM prescriptions")->fetchColumn();
-
-        if ($rxCount === 0) {
-            // Mark seeded so it never auto-seeds again when cleared
-            try {
-                $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES ('prescriptions_seeded', '1') ON DUPLICATE KEY UPDATE setting_value = '1'")->execute();
-            } catch (Exception $e) {}
+    private static function _legacySeedDefaultPrescriptions(): void
+    {
+        $pdo = getDBConnection();
+        if (false) {
 
             // Fetch available medication IDs
             $azithromycin = InventoryOperation::getMedicationByCode('MED-AZI-500');

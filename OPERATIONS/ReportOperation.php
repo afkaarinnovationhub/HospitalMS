@@ -378,12 +378,12 @@ class ReportOperation
     {
         $pdo = getDBConnection();
 
-        // 1. Medications Catalog Summary
+        // 1. Medications Catalog Summary with Batch Valuation
         $stmtMeds = $pdo->query("
             SELECT 
                 COUNT(*) as total_items,
                 COALESCE(SUM(current_stock), 0) as total_units_in_stock,
-                COALESCE(SUM(current_stock * cost_price), 0) as total_valuation_cost,
+                (SELECT COALESCE(SUM(quantity_remaining * CASE WHEN unit_cost > 0 THEN unit_cost ELSE cost_price END), 0) FROM medicine_batches WHERE status = 'active' AND quantity_remaining > 0) as total_valuation_cost,
                 COALESCE(SUM(current_stock * unit_price), 0) as total_valuation_retail,
                 COALESCE(SUM(CASE WHEN current_stock <= min_stock_alert AND current_stock > 0 THEN 1 ELSE 0 END), 0) as low_stock_count,
                 COALESCE(SUM(CASE WHEN current_stock = 0 THEN 1 ELSE 0 END), 0) as out_of_stock_count
@@ -406,6 +406,7 @@ class ReportOperation
             FROM medicine_batches
             WHERE expiry_date <= DATE_ADD(CURDATE(), INTERVAL 90 DAY)
               AND quantity_remaining > 0
+              AND status = 'active'
         ");
         $expirySummary = $stmtExpiry->fetch() ?: ['expiring_batch_count' => 0, 'expiring_units' => 0];
 
@@ -420,6 +421,89 @@ class ReportOperation
             'expiring_batch_count'   => (int)$expirySummary['expiring_batch_count'],
             'expiring_units'         => (int)$expirySummary['expiring_units'],
         ];
+    }
+
+    /**
+     * Pharmacy Inventory Summary Report (Summary by Medicine).
+     * Shows total quantity on hand, total valuation across all active batches, weighted average unit cost, and nearest expiry date.
+     *
+     * @return array
+     */
+    public static function getPharmacyInventorySummaryReport(): array
+    {
+        $pdo = getDBConnection();
+        $sql = "
+            SELECT 
+                m.id,
+                m.med_code,
+                m.name,
+                m.dosage_form,
+                m.category,
+                m.current_stock,
+                m.unit_price as selling_price,
+                COALESCE(b.total_batch_qty, 0) as batch_quantity,
+                COALESCE(b.total_batch_value, 0.00) as total_inventory_value,
+                CASE 
+                    WHEN COALESCE(b.total_batch_qty, 0) > 0 
+                    THEN ROUND(b.total_batch_value / b.total_batch_qty, 2)
+                    ELSE m.cost_price 
+                END as weighted_avg_cost,
+                b.nearest_expiry,
+                b.active_batch_count,
+                m.status
+            FROM medications m
+            LEFT JOIN (
+                SELECT 
+                    medication_id,
+                    COUNT(*) as active_batch_count,
+                    SUM(quantity_remaining) as total_batch_qty,
+                    SUM(quantity_remaining * CASE WHEN unit_cost > 0 THEN unit_cost ELSE cost_price END) as total_batch_value,
+                    MIN(expiry_date) as nearest_expiry
+                FROM medicine_batches
+                WHERE status = 'active' AND quantity_remaining > 0
+                GROUP BY medication_id
+            ) b ON m.id = b.medication_id
+            ORDER BY m.name ASC
+        ";
+        return $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Pharmacy Batch-Level Detail Report.
+     * Shows granular batch data: batch number, medicine name, received date, expiry date, days to expiry,
+     * quantity received, quantity remaining, unit cost, batch valuation, and batch status.
+     *
+     * @return array
+     */
+    public static function getPharmacyBatchDetailReport(): array
+    {
+        $pdo = getDBConnection();
+        $sql = "
+            SELECT 
+                b.id,
+                b.batch_number,
+                m.name as medication_name,
+                m.med_code,
+                m.dosage_form,
+                s.name as supplier_name,
+                b.received_date,
+                b.expiry_date,
+                DATEDIFF(b.expiry_date, CURDATE()) as days_to_expiry,
+                b.quantity_received,
+                b.quantity_remaining,
+                CASE WHEN b.unit_cost > 0 THEN b.unit_cost ELSE b.cost_price END as unit_cost,
+                ROUND(b.quantity_remaining * CASE WHEN b.unit_cost > 0 THEN b.unit_cost ELSE b.cost_price END, 2) as batch_value,
+                b.status
+            FROM medicine_batches b
+            JOIN medications m ON b.medication_id = m.id
+            LEFT JOIN suppliers s ON b.supplier_id = s.id
+            ORDER BY 
+                CASE WHEN b.status = 'active' THEN 0 ELSE 1 END,
+                b.expiry_date ASC, 
+                b.received_date ASC, 
+                b.id ASC
+        ";
+        return $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**

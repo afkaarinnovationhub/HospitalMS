@@ -17,6 +17,7 @@ require_once __DIR__ . '/../OPERATIONS/ConsultationOperation.php';
 require_once __DIR__ . '/../OPERATIONS/LaboratoryOperation.php';
 require_once __DIR__ . '/../CONTROLS/ConsultationController.php';
 require_once __DIR__ . '/../CONTROLS/LaboratoryController.php';
+require_once __DIR__ . '/../CONTROLS/PatientController.php';
 
 initSecureSession();
 requireLogin();
@@ -34,6 +35,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'save_consultation') {
         $result = ConsultationController::handleSaveConsultation($_POST);
+        if (isset($result['error'])) {
+            $errorMessage = $result['error'];
+        }
+    } elseif ($action === 'call_patient') {
+        $result = PatientController::handleCallPatient($_POST);
+        if (isset($result['error'])) {
+            $errorMessage = $result['error'];
+        }
+    } elseif ($action === 'update_status') {
+        $result = PatientController::handleUpdateQueueStatus($_POST);
         if (isset($result['error'])) {
             $errorMessage = $result['error'];
         }
@@ -62,37 +73,6 @@ if ($patientId > 0) {
     $patient = PatientOperation::getPatientById($patientId);
 }
 
-// If no patient specified in URL, check if there is an active waiting patient assigned to this doctor
-if (!$patient) {
-    $pdo = getDBConnection();
-    if ($currentDoctorId) {
-        $stmt = $pdo->prepare("
-            SELECT patient_id, id 
-            FROM patient_queues 
-            WHERE status IN ('waiting', 'in_consultation') AND doctor_id = :doc_id 
-            ORDER BY priority = 'emergency' DESC, priority = 'urgent' DESC, id ASC 
-            LIMIT 1
-        ");
-        $stmt->execute([':doc_id' => $currentDoctorId]);
-    } else {
-        $stmt = $pdo->prepare("
-            SELECT patient_id, id 
-            FROM patient_queues 
-            WHERE status IN ('waiting', 'in_consultation') 
-            ORDER BY priority = 'emergency' DESC, priority = 'urgent' DESC, id ASC 
-            LIMIT 1
-        ");
-        $stmt->execute();
-    }
-
-    $activeQueue = $stmt->fetch();
-    if ($activeQueue) {
-        $patientId = (int)$activeQueue['patient_id'];
-        $queueId   = (int)$activeQueue['id'];
-        $patient   = PatientOperation::getPatientById($patientId);
-    }
-}
-
 // If specific queue_id is passed, verify doctor assignment security
 if ($currentDoctorId && $queueId) {
     $pdo = getDBConnection();
@@ -105,47 +85,253 @@ if ($currentDoctorId && $queueId) {
     }
 }
 
-// If still no active patient in queue, render clean "Consultation Room Ready" state
+// If no active patient is selected, render clean "Consultation Station / Waiting Queue"
 if (!$patient) {
-    $pageTitle = 'Consultation Room - MedCore Systems';
-    $headerTitle = 'MedCore Management - Clinical Consultation';
+    $pageTitle = 'Consultation Station - MedCore Systems';
+    $headerTitle = 'MedCore Management - Clinical Consultation Station';
     $activePage = 'consultations';
+
+    $waitingQueue = PatientOperation::getQueue([
+        'status'    => 'active',
+        'doctor_id' => $currentDoctorId,
+    ]);
+
     include __DIR__ . '/../components/header.php';
     ?>
     <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-lg pb-6 bg-background custom-scrollbar">
+        <?php if (!empty($errorMessage)): ?>
+            <div class="max-w-5xl mx-auto mb-4 p-3 sm:p-4 rounded-xl bg-error-container border border-error/30 text-on-error-container text-xs sm:text-sm flex items-start gap-3 shadow-xs">
+                <span class="material-symbols-outlined text-error text-[20px] shrink-0 mt-0.5">error</span>
+                <div>
+                    <p class="font-bold">Consultation Notice</p>
+                    <p class="mt-0.5"><?php echo e($errorMessage); ?></p>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <?php if (!empty($successMessage)): ?>
-            <div class="max-w-2xl mx-auto mb-6 p-4 rounded-xl bg-secondary-fixed/40 border border-secondary/30 text-on-secondary-fixed-variant text-sm flex items-start gap-3 shadow-xs">
-                <span class="material-symbols-outlined text-secondary text-[22px] shrink-0 mt-0.5">check_circle</span>
+            <div class="max-w-5xl mx-auto mb-4 p-3 sm:p-4 rounded-xl bg-secondary-fixed/40 border border-secondary/30 text-on-secondary-fixed-variant text-xs sm:text-sm flex items-start gap-3 shadow-xs">
+                <span class="material-symbols-outlined text-secondary text-[20px] shrink-0 mt-0.5">check_circle</span>
                 <div class="flex-1">
-                    <p class="font-bold">Consultation Finished</p>
+                    <p class="font-bold">Clinical Notice</p>
                     <p class="mt-0.5"><?php echo e($successMessage); ?></p>
                 </div>
             </div>
         <?php endif; ?>
 
-        <div class="max-w-2xl mx-auto mt-8 bg-surface border border-outline-variant rounded-2xl p-8 sm:p-10 text-center shadow-md">
-            <div class="w-16 h-16 rounded-full bg-primary-fixed/40 text-primary flex items-center justify-center mx-auto mb-4">
-                <span class="material-symbols-outlined text-[36px]">stethoscope</span>
+        <!-- Station Header -->
+        <div class="max-w-5xl mx-auto mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-surface border border-outline-variant p-4 sm:p-5 rounded-2xl shadow-xs">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <span class="material-symbols-outlined text-[28px]">stethoscope</span>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h2 class="font-headline-sm text-lg sm:text-xl font-bold text-on-surface">Consultation Room Station</h2>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30">Ready for Consultation</span>
+                    </div>
+                    <p class="text-xs text-on-surface-variant mt-0.5">
+                        Attending: <strong>Dr. <?php echo e($currentUser['full_name']); ?></strong> (<?php echo e($currentUser['professional_title'] ?? 'General Practitioner'); ?>)
+                    </p>
+                </div>
             </div>
-            <h2 class="text-xl font-bold text-on-surface">Consultation Workspace Ready</h2>
-            <p class="mt-2 text-xs sm:text-sm text-on-surface-variant max-w-md mx-auto">
-                No active patients are currently waiting in your consultation queue. When a patient is checked in or called from the queue, their clinical chart will appear here.
-            </p>
-            <div class="mt-6 flex flex-wrap justify-center gap-3">
-                <a href="doctor_dashboard.php" class="px-4 py-2.5 bg-primary text-on-primary rounded-xl font-bold text-xs flex items-center gap-2 hover:bg-primary-container shadow-sm transition-all">
-                    <span class="material-symbols-outlined text-[18px]">dashboard</span>
-                    Doctor Dashboard
-                </a>
-                <a href="queue_management.php" class="px-4 py-2.5 bg-surface-container border border-outline-variant text-on-surface rounded-xl font-bold text-xs flex items-center gap-2 hover:bg-surface-container-high transition-all">
-                    <span class="material-symbols-outlined text-[18px]">queue</span>
-                    Live Queue Board
-                </a>
-                <?php if (!$currentDoctorId): ?>
-                    <a href="reception.php" class="px-4 py-2.5 bg-secondary text-on-secondary rounded-xl font-bold text-xs flex items-center gap-2 hover:bg-on-secondary-container transition-all">
-                        <span class="material-symbols-outlined text-[18px]">person_add</span>
-                        Reception Intake
-                    </a>
+
+            <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <?php
+                    $firstCallable = null;
+                    foreach ($waitingQueue as $cand) {
+                        if (in_array($cand['status'], ['waiting', 'on_hold', 'lab_completed'], true)) {
+                            $firstCallable = $cand;
+                            break;
+                        }
+                    }
+                ?>
+                <?php if ($firstCallable): ?>
+                    <form method="POST" action="consultation_michael_chen.php" class="w-full sm:w-auto">
+                        <?php echo csrfField(); ?>
+                        <input type="hidden" name="action" value="call_patient">
+                        <input type="hidden" name="queue_id" value="<?php echo (int)$firstCallable['id']; ?>">
+                        <button type="submit" class="w-full sm:w-auto px-4 py-2 bg-primary hover:bg-primary-container text-on-primary font-bold text-xs rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                            <span class="material-symbols-outlined text-[18px]">play_arrow</span>
+                            Call Next Patient (<?php echo e($firstCallable['token_number']); ?> - <?php echo e($firstCallable['patient_name']); ?>)
+                        </button>
+                    </form>
                 <?php endif; ?>
+                <a href="doctor_dashboard.php" class="px-3 py-2 border border-outline-variant hover:bg-surface-container rounded-xl text-xs font-semibold text-on-surface flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[16px]">dashboard</span>
+                    Dashboard
+                </a>
+            </div>
+        </div>
+
+        <!-- Waiting Queue Container -->
+        <div class="max-w-5xl mx-auto">
+            <div class="bg-surface border border-outline-variant rounded-2xl overflow-hidden shadow-sm">
+                <div class="p-4 sm:p-5 border-b border-outline-variant flex justify-between items-center bg-surface-container-low/50">
+                    <div>
+                        <h3 class="font-bold text-sm text-on-surface flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary text-[20px]">queue</span>
+                            Active Consultation Queue
+                        </h3>
+                        <p class="text-xs text-on-surface-variant mt-0.5">
+                            Bukaanada safka kuugu jira. Waxaad si toos ah u wici kartaa bukaan kasta oo jooga, ama dib u dhigi kartaa (On Hold) haddii la waayo.
+                        </p>
+                    </div>
+                    <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary">
+                        <?php echo count($waitingQueue); ?> Patients
+                    </span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-outline-variant bg-surface-container-low/30 text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+                                <th class="py-3 px-4">Token / Priority</th>
+                                <th class="py-3 px-4">Patient Information</th>
+                                <th class="py-3 px-4">Age / Gender</th>
+                                <th class="py-3 px-4">Clinical Status &amp; Vitals</th>
+                                <th class="py-3 px-4 text-right">Consultation Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-outline-variant text-xs text-on-surface">
+                            <?php if (empty($waitingQueue)): ?>
+                                <tr>
+                                    <td colspan="5" class="py-12 text-center text-on-surface-variant">
+                                        <div class="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-3 text-on-surface-variant">
+                                            <span class="material-symbols-outlined text-[32px]">check_circle</span>
+                                        </div>
+                                        <p class="font-bold text-sm text-on-surface">No patients currently waiting in your consultation queue.</p>
+                                        <p class="text-xs text-on-surface-variant mt-1 max-w-sm mx-auto">
+                                            When reception check-in assigns patients to you, they will appear here live.
+                                        </p>
+                                        <div class="mt-4 flex justify-center gap-2">
+                                            <a href="doctor_dashboard.php" class="px-3 py-1.5 bg-primary text-on-primary rounded-lg font-semibold text-xs">Doctor Dashboard</a>
+                                            <a href="queue_management.php" class="px-3 py-1.5 border border-outline-variant text-on-surface rounded-lg font-semibold text-xs">Live Queue Board</a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($waitingQueue as $q): ?>
+                                    <?php
+                                        $isUrgent = in_array($q['priority'], ['urgent', 'emergency'], true);
+                                        $hasVitals = !empty($q['systolic']);
+                                        $isInConsult = ($q['status'] === 'in_consultation');
+                                        $isOnHold = ($q['status'] === 'on_hold');
+                                        $isLabReady = ($q['status'] === 'lab_completed');
+                                        $isInLab = ($q['status'] === 'in_lab');
+                                    ?>
+                                    <tr class="hover:bg-surface-container-low transition-colors <?php echo $isInConsult ? 'bg-emerald-500/5' : ($isOnHold ? 'bg-amber-500/5' : ''); ?>">
+                                        <td class="py-3 px-4">
+                                            <div class="flex items-center gap-2">
+                                                <span class="font-mono font-bold text-xs px-2 py-0.5 rounded <?php echo $isInConsult ? 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-300' : 'bg-primary-fixed/40 text-primary'; ?>">
+                                                    <?php echo e($q['token_number']); ?>
+                                                </span>
+                                                <?php if ($isUrgent): ?>
+                                                    <span class="text-[10px] uppercase font-bold text-error bg-error-container/60 px-2 py-0.5 rounded-full">
+                                                        <?php echo e($q['priority']); ?>
+                                                    </span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <p class="text-[10px] text-on-surface-variant mt-0.5"><?php echo date('g:i A', strtotime($q['queued_at'])); ?></p>
+                                        </td>
+                                        <td class="py-3 px-4">
+                                            <div class="font-bold text-on-surface"><?php echo e($q['patient_name']); ?></div>
+                                            <div class="font-mono text-[11px] text-on-surface-variant"><?php echo e($q['mrn']); ?></div>
+                                        </td>
+                                        <td class="py-3 px-4">
+                                            <span class="font-semibold"><?php echo (int)$q['age']; ?> yrs</span>
+                                            <span class="text-on-surface-variant capitalize text-[11px]"> • <?php echo e($q['gender']); ?></span>
+                                        </td>
+                                        <td class="py-3 px-4">
+                                            <div class="flex flex-wrap items-center gap-1.5 mb-1">
+                                                <?php if ($isInConsult): ?>
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30">
+                                                        <span class="material-symbols-outlined text-[13px]">stethoscope</span> In Room
+                                                    </span>
+                                                <?php elseif ($isOnHold): ?>
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30" title="Patient was called but was temporarily absent">
+                                                        <span class="material-symbols-outlined text-[13px]">pause_circle</span> On Hold / Skipped
+                                                    </span>
+                                                <?php elseif ($isLabReady): ?>
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-800 dark:text-purple-300 border border-purple-500/30">
+                                                        <span class="material-symbols-outlined text-[13px]">verified</span> Lab Results Ready
+                                                    </span>
+                                                <?php elseif ($isInLab): ?>
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/15 text-cyan-800 dark:text-cyan-300 border border-cyan-500/30">
+                                                        <span class="material-symbols-outlined text-[13px]">biotech</span> In Lab
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/15 text-blue-800 dark:text-blue-300 border border-blue-500/30">
+                                                        Waiting in Lobby
+                                                    </span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <?php if ($hasVitals): ?>
+                                                <span class="text-[11px] text-on-surface-variant font-medium">
+                                                    BP <?php echo (int)$q['systolic']; ?>/<?php echo (int)$q['diastolic']; ?> • <?php echo (float)$q['temperature']; ?>°C
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="text-[11px] text-on-surface-variant"><?php echo e($q['chief_complaint'] ?: 'Routine OPD visit'); ?></span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="py-3 px-4 text-right">
+                                            <div class="flex items-center justify-end gap-1.5">
+                                                <?php if ($isInConsult): ?>
+                                                    <a href="consultation_michael_chen.php?id=<?php echo (int)$q['patient_id']; ?>&queue_id=<?php echo (int)$q['id']; ?>" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center gap-1 transition-colors cursor-pointer">
+                                                        <span class="material-symbols-outlined text-[16px]">stethoscope</span>
+                                                        Open Chart
+                                                    </a>
+                                                    <button type="button" 
+                                                            onclick="openHoldPatientModal(<?php echo (int)$q['id']; ?>, '<?php echo e(addslashes($q['patient_name'])); ?>', 'consultation_michael_chen.php')" 
+                                                            class="px-2 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-800 dark:text-amber-300 font-bold text-xs rounded-lg transition-colors cursor-pointer" 
+                                                            title="Put On Hold if absent">
+                                                        <span class="material-symbols-outlined text-[16px]">pause_circle</span>
+                                                        Hold
+                                                    </button>
+                                                <?php elseif ($isOnHold): ?>
+                                                    <form method="POST" action="consultation_michael_chen.php" class="inline">
+                                                        <?php echo csrfField(); ?>
+                                                        <input type="hidden" name="action" value="call_patient">
+                                                        <input type="hidden" name="queue_id" value="<?php echo (int)$q['id']; ?>">
+                                                        <button type="submit" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center gap-1 transition-colors cursor-pointer">
+                                                            <span class="material-symbols-outlined text-[16px]">replay</span>
+                                                            Recall Patient
+                                                        </button>
+                                                    </form>
+                                                <?php elseif ($isLabReady): ?>
+                                                    <form method="POST" action="consultation_michael_chen.php" class="inline">
+                                                        <?php echo csrfField(); ?>
+                                                        <input type="hidden" name="action" value="call_patient">
+                                                        <input type="hidden" name="queue_id" value="<?php echo (int)$q['id']; ?>">
+                                                        <button type="submit" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center gap-1 transition-colors cursor-pointer">
+                                                            <span class="material-symbols-outlined text-[16px]">assignment_turned_in</span>
+                                                            Review &amp; Prescribe
+                                                        </button>
+                                                    </form>
+                                                <?php elseif ($isInLab): ?>
+                                                    <a href="consultation_michael_chen.php?id=<?php echo (int)$q['patient_id']; ?>&queue_id=<?php echo (int)$q['id']; ?>" class="px-3 py-1.5 bg-surface-container border border-outline-variant hover:bg-surface-container-high text-on-surface font-semibold text-xs rounded-lg flex items-center gap-1 transition-colors">
+                                                        <span class="material-symbols-outlined text-[16px]">visibility</span>
+                                                        View Order
+                                                    </a>
+                                                <?php else: ?>
+                                                    <form method="POST" action="consultation_michael_chen.php" class="inline">
+                                                        <?php echo csrfField(); ?>
+                                                        <input type="hidden" name="action" value="call_patient">
+                                                        <input type="hidden" name="queue_id" value="<?php echo (int)$q['id']; ?>">
+                                                        <button type="submit" class="px-3 py-1.5 bg-primary hover:bg-primary-container text-on-primary font-bold text-xs rounded-lg shadow-xs flex items-center gap-1 transition-colors cursor-pointer">
+                                                            <span class="material-symbols-outlined text-[16px]">play_arrow</span>
+                                                            Call In
+                                                        </button>
+                                                    </form>
+                                                <?php endif; ?>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </main>
@@ -154,15 +340,10 @@ if (!$patient) {
     exit;
 }
 
-// Mark queue status as 'in_consultation' ONLY IF currently 'waiting'
+// When a patient is actively opened into the consultation room, mark them as 'in_consultation'
+// This puts any other active consultation for this doctor on hold
 if ($queueId) {
-    $pdo = getDBConnection();
-    $stmtQCheck = $pdo->prepare("SELECT status FROM patient_queues WHERE id = ?");
-    $stmtQCheck->execute([$queueId]);
-    $currStatus = $stmtQCheck->fetchColumn();
-    if ($currStatus === 'waiting') {
-        PatientOperation::updateQueueStatus($queueId, 'in_consultation');
-    }
+    PatientOperation::callPatientForDoctor($queueId, $currentDoctorId);
 }
 
 // Retrieve Medications Catalog for prescribing
@@ -272,6 +453,19 @@ include __DIR__ . '/../components/header.php';
                     Allergies: Pending Assessment
                 </span>
             <?php endif; ?>
+            <?php if ($queueId): ?>
+                <button type="button" 
+                        onclick="openHoldPatientModal(<?php echo (int)$queueId; ?>, '<?php echo e(addslashes($patient['first_name'] . ' ' . $patient['last_name'])); ?>', 'consultation_michael_chen.php')" 
+                        class="px-3 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-800 dark:text-amber-300 rounded-lg font-label-md text-xs transition-colors font-bold flex items-center gap-1 cursor-pointer" 
+                        title="Put patient on hold if absent, and call next patient">
+                    <span class="material-symbols-outlined text-[16px]">pause_circle</span>
+                    Put On Hold
+                </button>
+            <?php endif; ?>
+            <a href="consultation_michael_chen.php" class="px-3 py-1.5 border border-outline-variant hover:bg-surface-container rounded-lg font-label-md text-xs transition-colors font-semibold flex items-center gap-1" title="View assigned queue / call other patients">
+                <span class="material-symbols-outlined text-[16px]">queue</span>
+                Doctor Queue
+            </a>
             <a href="patient_profile_michael_chen.php?id=<?php echo (int)$patient['id']; ?>" class="px-3 py-1.5 border border-outline-variant hover:bg-surface-container rounded-lg font-label-md text-xs transition-colors font-semibold flex items-center gap-1">
                 <span class="material-symbols-outlined text-[15px]">folder_shared</span>
                 Full Medical Chart
@@ -614,7 +808,62 @@ include __DIR__ . '/../components/header.php';
     </div>
 </template>
 
+<!-- MODAL: Put Patient On Hold Confirmation -->
+<div id="hold-patient-modal" class="fixed inset-0 z-50 bg-black/60 hidden backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-surface rounded-2xl border border-outline-variant max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div class="flex items-center gap-3 text-amber-600 dark:text-amber-400">
+            <div class="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-[28px]">pause_circle</span>
+            </div>
+            <div>
+                <h3 class="font-bold text-base text-on-surface">Bukaanka Dib Ma U Dhigtaa?</h3>
+                <p class="text-xs text-on-surface-variant">Xaqiijinta gelinta bukaanka xaaladda On Hold</p>
+            </div>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-surface-container border border-outline-variant text-xs text-on-surface space-y-1.5">
+            <p><strong class="text-on-surface">Bukaanka:</strong> <span id="hold_patient_name" class="font-bold text-primary"></span></p>
+            <p class="text-on-surface-variant leading-relaxed">
+                Bukaankan waxaa si ku meel-gaar ah loogu wareejinayaa safka <strong>On Hold</strong> safkana lagama saari doono. Waxaad awood u leedahay inaad wacato bukaan kale, bukaankanna dib ugu yeerto (Recall) marka uu yimaado.
+            </p>
+        </div>
+
+        <form id="hold-patient-form" method="POST" action="consultation_michael_chen.php" class="flex justify-end gap-2 pt-2 border-t border-outline-variant">
+            <?php echo csrfField(); ?>
+            <input type="hidden" name="action" value="update_status">
+            <input type="hidden" id="hold_queue_id" name="queue_id" value="">
+            <input type="hidden" name="status" value="on_hold">
+            <input type="hidden" id="hold_redirect" name="redirect" value="consultation_michael_chen.php">
+
+            <button type="button" onclick="closeHoldPatientModal()" class="px-3.5 py-2 rounded-xl border border-outline-variant text-xs font-semibold text-on-surface hover:bg-surface-container-low cursor-pointer">
+                Ka Noqo (Cancel)
+            </button>
+            <button type="submit" class="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[16px]">pause_circle</span>
+                Haa, Dib U Dhig (On Hold)
+            </button>
+        </form>
+    </div>
+</div>
+
 <script>
+    function openHoldPatientModal(queueId, patientName, redirectUrl = '') {
+        const modal = document.getElementById('hold-patient-modal');
+        if (!modal) return;
+        document.getElementById('hold_queue_id').value = queueId;
+        document.getElementById('hold_patient_name').textContent = patientName || 'Bukaanka';
+        if (redirectUrl) {
+            const redirElem = document.getElementById('hold_redirect');
+            if (redirElem) redirElem.value = redirectUrl;
+        }
+        modal.classList.remove('hidden');
+    }
+
+    function closeHoldPatientModal() {
+        const modal = document.getElementById('hold-patient-modal');
+        if (modal) modal.classList.add('hidden');
+    }
+
     function addMedicationRow() {
         const template = document.getElementById('med-row-template');
         const container = document.getElementById('medication-rows-container');

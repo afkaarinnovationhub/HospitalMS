@@ -120,6 +120,17 @@ class BillingOperation
                 $fee,
             ]);
 
+            // Auto-post Option A accrual to General Ledger so services on credit never silently skip the ledger
+            if ($fee > 0.0) {
+                self::processInvoicePayment(
+                    $invoiceId,
+                    0.00,
+                    'credit',
+                    "Initial Consultation Fee Accrual [Token: " . ($tokenNumber ?: 'OPD') . "]",
+                    $userId ?? 1
+                );
+            }
+
             if ($ownsTransaction && $pdo->inTransaction()) {
                 $pdo->commit();
             }
@@ -218,6 +229,17 @@ class BillingOperation
                     $price,
                     $price,
                 ]);
+            }
+
+            // Auto-post Option A accrual to General Ledger so laboratory diagnostic tests on credit never silently skip the ledger
+            if ($totalAmount > 0.0) {
+                self::processInvoicePayment(
+                    $invoiceId,
+                    0.00,
+                    'credit',
+                    "Diagnostic Laboratory Tests Accrual [Token: {$tokenNumber}]",
+                    $userId ?? 1
+                );
             }
 
             if ($ownsTransaction && $pdo->inTransaction()) {
@@ -358,7 +380,8 @@ class BillingOperation
         float $amountPaid,
         string $paymentMethod = 'cash',
         string $notes = '',
-        ?int $cashierId = 1
+        ?int $cashierId = 1,
+        ?float $cogsCost = null
     ): array {
         $pdo = getDBConnection();
         AccountingOperation::seedChartOfAccountsIfEmpty();
@@ -374,11 +397,12 @@ class BillingOperation
         $currentDue  = (float)$invoice['due_amount'];
         $netTotal    = (float)$invoice['net_total'];
 
-        $effectivePayment = min($currentDue, max(0.01, $amountPaid));
+        // Fix #1: Genuine $0 payment allowed (no 0.01 floor)
+        $effectivePayment = max(0.00, min($currentDue, (float)$amountPaid));
         $newPaidTotal     = round($currentPaid + $effectivePayment, 2);
         $newDueTotal      = max(0.00, round($netTotal - $newPaidTotal, 2));
 
-        $newStatus = ($newDueTotal <= 0.00) ? 'paid' : 'partial';
+        $newStatus = ($newDueTotal <= 0.00) ? 'paid' : (($newPaidTotal > 0.00) ? 'partial' : 'pending');
 
         $ownsTransaction = false;
         if (!$pdo->inTransaction()) {
@@ -407,8 +431,8 @@ class BillingOperation
                 ':id'     => $invoiceId,
             ]);
 
-            // 2. If Consultation Invoice, update queue billing status
-            if (!empty($invoice['queue_id'])) {
+            // 2. If Consultation Invoice, update queue billing status when paid/settled
+            if (!empty($invoice['queue_id']) && ($newStatus === 'paid' || $effectivePayment > 0.0)) {
                 $pdo->prepare("
                     UPDATE patient_queues 
                     SET billing_status = 'paid' 
@@ -416,15 +440,18 @@ class BillingOperation
                 ")->execute([$invoice['queue_id']]);
             }
 
-            // 3. Post Balanced Double-Entry Journal to General Ledger
+            // 3. Post Balanced Double-Entry Journal to General Ledger (Option A: Full Accrual)
             // Determine Revenue Account
             $revenueAccountCode = match ($invoice['bill_type']) {
                 'consultation'      => '4020', // Consultation Fees Revenue
-                'pharmacy'          => '4010', // Pharmacy Sales Revenue
+                'pharmacy', 'walk_in' => '4010', // Pharmacy Sales Revenue
                 'lab', 'laboratory' => '4030', // Laboratory Fees Revenue
                 default             => '4090', // Other Clinical Revenue
             };
-            $revAcc = AccountingOperation::getAccountByCode($revenueAccountCode);
+            $revAcc  = AccountingOperation::getAccountByCode($revenueAccountCode);
+            $arAcc   = AccountingOperation::getAccountByCode('1100'); // Accounts Receivable - Patients
+            $cogsAcc = AccountingOperation::getAccountByCode('5010'); // Cost of Dispensed Medications
+            $invAcc  = AccountingOperation::getAccountByCode('1200'); // Pharmacy Inventory Asset
 
             // Determine Cash/Mobile/Bank Asset Account
             $assetAccountCode = match ($paymentMethod) {
@@ -434,11 +461,111 @@ class BillingOperation
             };
             $cashAcc = AccountingOperation::getAccountByCode($assetAccountCode);
 
-            if ($revAcc && $cashAcc) {
-                $journalItems = [
-                    ['account_id' => (int)$cashAcc['id'], 'debit' => $effectivePayment, 'credit' => 0.00, 'memo' => "Payment for {$invoice['invoice_number']}"],
-                    ['account_id' => (int)$revAcc['id'], 'debit' => 0.00, 'credit' => $effectivePayment, 'memo' => "Revenue recognized for {$invoice['bill_type']} [{$invoice['customer_name']}]"],
-                ];
+            // Triple-layer check to ensure revenue is NEVER accrued more than once:
+            // Layer 1: Has any payment already been recorded on this invoice?
+            // Layer 2: Has this invoice already been settled/processed previously (paid_at timestamp set)?
+            // Layer 3: Does journal_entries already contain an entry for this invoice?
+            $hasInitialAccrual = ($currentPaid > 0.00) || !empty($invoice['paid_at']);
+            if (!$hasInitialAccrual) {
+                $stmtCheckJe = $pdo->prepare("
+                    SELECT COUNT(*) 
+                    FROM journal_entries 
+                    WHERE reference_type IN ('consultation_fee', 'lab_fee', 'pharmacy_sale', 'patient_billing', 'patient_debt_payment') 
+                      AND reference_id = ?
+                ");
+                $stmtCheckJe->execute([$invoiceId]);
+                $hasInitialAccrual = ((int)$stmtCheckJe->fetchColumn() > 0);
+            }
+
+            if (!$hasInitialAccrual) {
+                // --- INITIAL INVOICE SETTLEMENT (OPTION A FULL ACCRUAL) ---
+                $journalItems = [];
+
+                // A. Dr Cash/Mobile/Bank for amount actually paid now (omitted if $effectivePayment == 0)
+                if ($effectivePayment > 0.00 && $cashAcc) {
+                    $journalItems[] = [
+                        'account_id' => (int)$cashAcc['id'],
+                        'debit'      => $effectivePayment,
+                        'credit'     => 0.00,
+                        'memo'       => "Payment for {$invoice['invoice_number']} via {$paymentMethod}",
+                    ];
+                }
+
+                // B. Dr Accounts Receivable (1100) for amount owed (omitted if paid in full)
+                if ($newDueTotal > 0.00 && $arAcc) {
+                    $journalItems[] = [
+                        'account_id' => (int)$arAcc['id'],
+                        'debit'      => $newDueTotal,
+                        'credit'     => 0.00,
+                        'memo'       => "Accounts Receivable (Patient Debt) for {$invoice['invoice_number']} [{$invoice['customer_name']}]",
+                    ];
+                }
+
+                // C. Cr Revenue (4010/4020/4030) for the FULL invoiced amount (net_total), always
+                if ($netTotal > 0.00 && $revAcc) {
+                    $journalItems[] = [
+                        'account_id' => (int)$revAcc['id'],
+                        'debit'      => 0.00,
+                        'credit'     => $netTotal,
+                        'memo'       => "Revenue recognized for {$invoice['bill_type']} [{$invoice['customer_name']}]",
+                    ];
+                }
+
+                // D. For Pharmacy sales/dispenses: Dr COGS (5010) / Cr Pharmacy Inventory (1200)
+                if (in_array($invoice['bill_type'], ['pharmacy', 'walk_in'], true) && $cogsAcc && $invAcc) {
+                    // If COGS cost was not directly provided, check batch movements first, then batch unit costs
+                    if ($cogsCost === null) {
+                        $cogsCost = 0.0;
+                        // 1. Check if exact FIFO batch movements exist for this invoice
+                        $stmtMbm = $pdo->prepare("
+                            SELECT COALESCE(SUM(total_cost), 0)
+                            FROM medicine_batch_movements
+                            WHERE reference_transaction_id = ? AND movement_type = 'dispense'
+                        ");
+                        $stmtMbm->execute([$invoice['invoice_number']]);
+                        $mbmCost = (float)$stmtMbm->fetchColumn();
+
+                        if ($mbmCost > 0.0) {
+                            $cogsCost = $mbmCost;
+                        } else {
+                            // 2. Fallback: compute from active batches
+                            $stmtItems = $pdo->prepare("SELECT item_reference_id, quantity FROM invoice_items WHERE invoice_id = ? AND item_type = 'medication'");
+                            $stmtItems->execute([$invoiceId]);
+                            $mItems = $stmtItems->fetchAll();
+                            foreach ($mItems as $mi) {
+                                $stmtBatchCost = $pdo->prepare("
+                                    SELECT CASE WHEN unit_cost > 0 THEN unit_cost ELSE cost_price END 
+                                    FROM medicine_batches 
+                                    WHERE medication_id = ? AND status = 'active' 
+                                    ORDER BY expiry_date ASC, id ASC LIMIT 1
+                                ");
+                                $stmtBatchCost->execute([$mi['item_reference_id']]);
+                                $unitCost = (float)($stmtBatchCost->fetchColumn() ?: 0.0);
+                                if ($unitCost <= 0.0) {
+                                    $stmtMedCost = $pdo->prepare("SELECT cost_price FROM medications WHERE id = ?");
+                                    $stmtMedCost->execute([$mi['item_reference_id']]);
+                                    $unitCost = (float)($stmtMedCost->fetchColumn() ?: 0.0);
+                                }
+                                $cogsCost += ($unitCost * (int)$mi['quantity']);
+                            }
+                        }
+                    }
+
+                    if ($cogsCost > 0.00) {
+                        $journalItems[] = [
+                            'account_id' => (int)$cogsAcc['id'],
+                            'debit'      => round($cogsCost, 2),
+                            'credit'     => 0.00,
+                            'memo'       => "Cost of Goods Sold (COGS) for {$invoice['invoice_number']}",
+                        ];
+                        $journalItems[] = [
+                            'account_id' => (int)$invAcc['id'],
+                            'debit'      => 0.00,
+                            'credit'     => round($cogsCost, 2),
+                            'memo'       => "Pharmacy Inventory Asset reduction for {$invoice['invoice_number']}",
+                        ];
+                    }
+                }
 
                 $refType = match ($invoice['bill_type']) {
                     'consultation'      => 'consultation_fee',
@@ -446,14 +573,44 @@ class BillingOperation
                     default             => 'pharmacy_sale',
                 };
 
-                AccountingOperation::recordJournalEntry(
-                    date('Y-m-d'),
-                    $refType,
-                    $invoiceId,
-                    "Billing Payment [{$invoice['invoice_number']}]: {$invoice['customer_name']} - \${$effectivePayment}",
-                    $journalItems,
-                    $cashierId ?? 1
-                );
+                if (!empty($journalItems)) {
+                    AccountingOperation::recordJournalEntry(
+                        date('Y-m-d'),
+                        $refType,
+                        $invoiceId,
+                        "Billing Accrual [{$invoice['invoice_number']}]: {$invoice['customer_name']} (Net: \${$netTotal}, Paid: \${$effectivePayment}, Due: \${$newDueTotal})",
+                        $journalItems,
+                        $cashierId ?? 1
+                    );
+                }
+
+            } else {
+                // --- SUBSEQUENT PATIENT DEBT SETTLEMENT (PAYING DOWN AR) ---
+                if ($effectivePayment > 0.00 && $cashAcc && $arAcc) {
+                    $journalItems = [
+                        [
+                            'account_id' => (int)$cashAcc['id'],
+                            'debit'      => $effectivePayment,
+                            'credit'     => 0.00,
+                            'memo'       => "Patient debt collection for {$invoice['invoice_number']}",
+                        ],
+                        [
+                            'account_id' => (int)$arAcc['id'],
+                            'debit'      => 0.00,
+                            'credit'     => $effectivePayment,
+                            'memo'       => "Accounts Receivable clearance for {$invoice['invoice_number']}",
+                        ],
+                    ];
+
+                    AccountingOperation::recordJournalEntry(
+                        date('Y-m-d'),
+                        'patient_debt_payment',
+                        $invoiceId,
+                        "Patient Debt Settlement: \${$effectivePayment} collected for {$invoice['invoice_number']} ({$invoice['customer_name']})",
+                        $journalItems,
+                        $cashierId ?? 1
+                    );
+                }
             }
 
             if ($ownsTransaction && $pdo->inTransaction()) {

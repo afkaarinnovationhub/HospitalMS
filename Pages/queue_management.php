@@ -44,7 +44,12 @@ if (!empty($_SESSION['hpms_last_refund_voucher'])) {
 // Handle Status Updates, Edits & Deletions
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $action = $_POST['action'] ?? '';
-    if ($action === 'update_status') {
+    if ($action === 'call_patient') {
+        $result = PatientController::handleCallPatient($_POST);
+        if (isset($result['error'])) {
+            $errorMessage = $result['error'];
+        }
+    } elseif ($action === 'update_status') {
         $result = PatientController::handleUpdateQueueStatus($_POST);
         if (isset($result['error'])) {
             $errorMessage = $result['error'];
@@ -75,12 +80,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 // Filters (Role-Scoped)
 $statusFilter   = sanitizeString($_GET['status'] ?? 'all');
 $deptFilter     = sanitizeString($_GET['dept'] ?? '');
+$searchQuery    = sanitizeString($_GET['search'] ?? '');
 $currentUser    = getCurrentUser();
 $isDoctorRole   = (($currentUser['role'] ?? '') === ROLE_DOCTOR);
-$scopedDoctorId = $isDoctorRole ? (int)$currentUser['id'] : null;
+
+if ($isDoctorRole) {
+    $scopedDoctorId = (int)$currentUser['id'];
+} else {
+    $scopedDoctorId = !empty($_GET['doctor_id']) ? (int)$_GET['doctor_id'] : null;
+}
 
 $kpis    = PatientOperation::getPatientSummaryKPIs($scopedDoctorId);
-$queue   = PatientOperation::getQueue($statusFilter === 'all' ? null : $statusFilter, $scopedDoctorId, $deptFilter ?: null);
+$queue   = PatientOperation::getQueue($statusFilter === 'all' ? null : $statusFilter, $scopedDoctorId, $deptFilter ?: null, $searchQuery ?: null);
 $doctors = PatientOperation::getDoctorsList();
 
 // Fetch per-doctor queue counts today
@@ -114,10 +125,17 @@ include __DIR__ . '/../components/header.php';
             </p>
         </div>
         <div class="flex flex-wrap gap-sm w-full sm:w-auto">
-            <a href="reception.php" class="flex-1 sm:flex-none justify-center px-md py-2 bg-primary text-on-primary font-label-md text-xs sm:text-label-md rounded-md hover:bg-primary-container hover:text-on-primary-container transition-colors flex items-center gap-xs shadow-sm font-bold cursor-pointer">
-                <span class="material-symbols-outlined text-[18px]">desk</span>
-                Reception Desk
-            </a>
+            <?php if ($isDoctorRole): ?>
+                <a href="doctor_dashboard.php" class="flex-1 sm:flex-none justify-center px-md py-2 bg-primary text-on-primary font-label-md text-xs sm:text-label-md rounded-md hover:bg-primary-container hover:text-on-primary-container transition-colors flex items-center gap-xs shadow-sm font-bold cursor-pointer">
+                    <span class="material-symbols-outlined text-[18px]">stethoscope</span>
+                    Doctor Dashboard
+                </a>
+            <?php else: ?>
+                <a href="reception.php" class="flex-1 sm:flex-none justify-center px-md py-2 bg-primary text-on-primary font-label-md text-xs sm:text-label-md rounded-md hover:bg-primary-container hover:text-on-primary-container transition-colors flex items-center gap-xs shadow-sm font-bold cursor-pointer">
+                    <span class="material-symbols-outlined text-[18px]">desk</span>
+                    Reception Desk
+                </a>
+            <?php endif; ?>
             <a href="patient_registration.php" class="flex-1 sm:flex-none justify-center px-md py-2 border border-outline-variant text-on-surface font-label-md text-xs sm:text-label-md rounded-md hover:bg-surface-container transition-colors flex items-center gap-xs font-medium">
                 <span class="material-symbols-outlined text-[18px]">groups</span>
                 Patients Master
@@ -176,11 +194,33 @@ include __DIR__ . '/../components/header.php';
     <div class="bg-surface rounded-xl border border-outline-variant overflow-hidden shadow-sm flex flex-col">
         <!-- Filters Toolbar -->
         <form method="GET" action="queue_management.php" class="p-3 border-b border-outline-variant flex flex-wrap gap-2 justify-between items-center bg-surface-bright">
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+                <!-- Instant Search Bar -->
+                <div class="relative w-full sm:w-60 max-w-xs">
+                    <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[17px] pointer-events-none">search</span>
+                    <input type="text" 
+                           id="queue-search-input" 
+                           name="search" 
+                           value="<?php echo e($searchQuery); ?>" 
+                           placeholder="Search token, name, MRN..." 
+                           autocomplete="off"
+                           class="w-full bg-surface border border-outline-variant rounded-lg pl-8 pr-7 py-1 text-xs text-on-surface focus:border-primary outline-none transition-colors">
+                    <button type="button" 
+                            id="queue-search-clear-btn" 
+                            onclick="clearQueueSearch()" 
+                            class="<?php echo empty($searchQuery) ? 'hidden ' : ''; ?>absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-0.5 cursor-pointer" 
+                            title="Clear search">
+                        <span class="material-symbols-outlined text-[14px]">close</span>
+                    </button>
+                </div>
+
                 <select name="status" onchange="this.form.submit()" class="bg-surface border border-outline-variant rounded px-2.5 py-1 text-xs text-on-surface outline-none">
                     <option value="all" <?php echo $statusFilter === 'all' ? 'selected' : ''; ?>>Status: All</option>
                     <option value="waiting" <?php echo $statusFilter === 'waiting' ? 'selected' : ''; ?>>Waiting</option>
                     <option value="in_consultation" <?php echo $statusFilter === 'in_consultation' ? 'selected' : ''; ?>>In Consultation</option>
+                    <option value="on_hold" <?php echo $statusFilter === 'on_hold' ? 'selected' : ''; ?>>On Hold</option>
+                    <option value="in_lab" <?php echo $statusFilter === 'in_lab' ? 'selected' : ''; ?>>In Lab</option>
+                    <option value="lab_completed" <?php echo $statusFilter === 'lab_completed' ? 'selected' : ''; ?>>Lab Ready</option>
                     <option value="completed" <?php echo $statusFilter === 'completed' ? 'selected' : ''; ?>>Completed</option>
                 </select>
                 <select name="dept" onchange="this.form.submit()" class="bg-surface border border-outline-variant rounded px-2.5 py-1 text-xs text-on-surface outline-none">
@@ -190,6 +230,21 @@ include __DIR__ . '/../components/header.php';
                     <option value="Neurology OPD" <?php echo $deptFilter === 'Neurology OPD' ? 'selected' : ''; ?>>Neurology OPD</option>
                     <option value="Endocrinology OPD" <?php echo $deptFilter === 'Endocrinology OPD' ? 'selected' : ''; ?>>Endocrinology OPD</option>
                 </select>
+                <?php if ($isDoctorRole): ?>
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-primary/10 border border-primary/20 text-primary font-bold text-xs">
+                        <span class="material-symbols-outlined text-[15px]">stethoscope</span>
+                        My Queue: <?php echo e($currentUser['full_name'] ?? 'Doctor'); ?>
+                    </span>
+                <?php else: ?>
+                    <select name="doctor_id" onchange="this.form.submit()" class="bg-surface border border-outline-variant rounded px-2.5 py-1 text-xs text-on-surface outline-none">
+                        <option value="">All Doctors</option>
+                        <?php foreach ($doctors as $doc): ?>
+                            <option value="<?php echo (int)$doc['id']; ?>" <?php echo ((int)$scopedDoctorId === (int)$doc['id']) ? 'selected' : ''; ?>>
+                                <?php echo e($doc['full_name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                <?php endif; ?>
             </div>
             <div class="flex items-center gap-2">
                 <a href="queue_management.php" class="p-1 text-on-surface-variant hover:bg-surface-container rounded border border-outline-variant flex items-center justify-center cursor-pointer" title="Refresh Live Queue">
@@ -253,7 +308,13 @@ include __DIR__ . '/../components/header.php';
                                     <?php if ($item['status'] === 'waiting'): ?>
                                         <span class="bg-surface-variant text-on-surface-variant font-label-md text-[10px] px-2 py-0.5 rounded-full font-semibold">Waiting</span>
                                     <?php elseif ($item['status'] === 'in_consultation'): ?>
-                                        <span class="bg-primary-container text-on-primary-container font-label-md text-[10px] px-2 py-0.5 rounded-full font-bold">In Consultation</span>
+                                        <span class="bg-primary-container text-on-primary-container font-label-md text-[10px] px-2 py-0.5 rounded-full font-bold animate-pulse">In Consultation</span>
+                                    <?php elseif ($item['status'] === 'on_hold'): ?>
+                                        <span class="bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-label-md text-[10px] px-2 py-0.5 rounded-full font-bold">On Hold</span>
+                                    <?php elseif ($item['status'] === 'in_lab'): ?>
+                                        <span class="bg-purple-500/15 border border-purple-500/30 text-purple-800 dark:text-purple-300 font-label-md text-[10px] px-2 py-0.5 rounded-full font-bold">In Lab</span>
+                                    <?php elseif ($item['status'] === 'lab_completed'): ?>
+                                        <span class="bg-teal-500/15 border border-teal-500/30 text-teal-800 dark:text-teal-300 font-label-md text-[10px] px-2 py-0.5 rounded-full font-bold">Lab Ready</span>
                                     <?php elseif ($item['status'] === 'completed'): ?>
                                         <span class="bg-secondary-fixed text-on-secondary-fixed font-label-md text-[10px] px-2 py-0.5 rounded-full font-bold">Completed</span>
                                     <?php else: ?>
@@ -268,14 +329,39 @@ include __DIR__ . '/../components/header.php';
                                                 <input type="hidden" name="action" value="update_status">
                                                 <input type="hidden" name="queue_id" value="<?php echo (int)$item['id']; ?>">
                                                 <input type="hidden" name="status" value="in_consultation">
-                                                <button type="submit" class="px-2 py-1 bg-primary text-on-primary rounded text-[11px] font-bold hover:bg-primary-container transition-colors cursor-pointer">
+                                                <button type="submit" class="px-2 py-1 bg-primary text-on-primary rounded text-[11px] font-bold hover:bg-primary-container transition-colors cursor-pointer" title="Call in to consultation">
                                                     Call In
                                                 </button>
                                             </form>
                                         <?php elseif ($item['status'] === 'in_consultation'): ?>
-                                            <a href="consultation_michael_chen.php" class="px-2 py-1 bg-secondary text-on-secondary rounded text-[11px] font-bold hover:bg-on-secondary-container transition-colors">
+                                            <a href="consultation_michael_chen.php?id=<?php echo (int)$item['patient_id']; ?>&queue_id=<?php echo (int)$item['id']; ?>" class="px-2 py-1 bg-primary text-on-primary rounded text-[11px] font-bold hover:bg-primary/90 transition-colors" title="Open patient consultation room">
                                                 Consult
                                             </a>
+                                            <button type="button" 
+                                                    onclick="openHoldPatientModal(<?php echo (int)$item['id']; ?>, '<?php echo e(addslashes($item['patient_name'])); ?>', 'queue_management.php')" 
+                                                    class="px-2 py-1 bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 hover:bg-amber-500/25 rounded text-[11px] font-bold transition-colors cursor-pointer" 
+                                                    title="Put patient on hold if temporarily away">
+                                                Hold
+                                            </button>
+                                            <form method="POST" action="queue_management.php" class="inline">
+                                                <?php echo csrfField(); ?>
+                                                <input type="hidden" name="action" value="update_status">
+                                                <input type="hidden" name="queue_id" value="<?php echo (int)$item['id']; ?>">
+                                                <input type="hidden" name="status" value="completed">
+                                                <button type="submit" class="px-2 py-1 bg-surface-container border border-outline-variant hover:bg-surface-container-high rounded text-[11px] font-bold text-on-surface cursor-pointer">
+                                                    Done
+                                                </button>
+                                            </form>
+                                        <?php elseif ($item['status'] === 'on_hold' || $item['status'] === 'lab_completed'): ?>
+                                            <form method="POST" action="queue_management.php" class="inline">
+                                                <?php echo csrfField(); ?>
+                                                <input type="hidden" name="action" value="update_status">
+                                                <input type="hidden" name="queue_id" value="<?php echo (int)$item['id']; ?>">
+                                                <input type="hidden" name="status" value="in_consultation">
+                                                <button type="submit" class="px-2 py-1 bg-primary text-on-primary rounded text-[11px] font-bold hover:bg-primary-container transition-colors cursor-pointer" title="Recall patient into consultation">
+                                                    Recall
+                                                </button>
+                                            </form>
                                             <form method="POST" action="queue_management.php" class="inline">
                                                 <?php echo csrfField(); ?>
                                                 <input type="hidden" name="action" value="update_status">
@@ -286,20 +372,22 @@ include __DIR__ . '/../components/header.php';
                                                 </button>
                                             </form>
                                         <?php endif; ?>
-                                        <button type="button" 
-                                                onclick="openEditQueueModal(<?php echo (int)$item['id']; ?>, '<?php echo e(addslashes($item['patient_name'])); ?>', <?php echo (int)($item['doctor_id'] ?? 0); ?>, '<?php echo e(addslashes($item['department'])); ?>', '<?php echo e($item['priority']); ?>', <?php echo (float)($item['invoice_paid'] ?? 0.00); ?>, <?php echo (float)($item['current_doctor_fee'] ?? 10.00); ?>, <?php echo (float)($item['account_credit'] ?? 0.00); ?>)" 
-                                                class="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded transition-colors cursor-pointer" 
-                                                title="Edit Queue Assignment">
-                                            <span class="material-symbols-outlined text-[17px]">edit</span>
-                                        </button>
-                                        <form method="POST" action="queue_management.php" class="inline" onsubmit="return confirm('Are you sure you want to remove this patient from the queue?');">
-                                            <?php echo csrfField(); ?>
-                                            <input type="hidden" name="action" value="delete_queue">
-                                            <input type="hidden" name="queue_id" value="<?php echo (int)$item['id']; ?>">
-                                            <button type="submit" class="p-1 text-on-surface-variant hover:text-error hover:bg-error-container/30 rounded transition-colors cursor-pointer" title="Remove from Queue">
-                                                <span class="material-symbols-outlined text-[17px]">delete</span>
+                                        <?php if (!$isDoctorRole): ?>
+                                            <button type="button" 
+                                                    onclick="openEditQueueModal(<?php echo (int)$item['id']; ?>, '<?php echo e(addslashes($item['patient_name'])); ?>', <?php echo (int)($item['doctor_id'] ?? 0); ?>, '<?php echo e(addslashes($item['department'])); ?>', '<?php echo e($item['priority']); ?>', <?php echo (float)($item['invoice_paid'] ?? 0.00); ?>, <?php echo (float)($item['current_doctor_fee'] ?? 10.00); ?>, <?php echo (float)($item['account_credit'] ?? 0.00); ?>)" 
+                                                    class="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded transition-colors cursor-pointer" 
+                                                    title="Edit Queue Assignment">
+                                                <span class="material-symbols-outlined text-[17px]">edit</span>
                                             </button>
-                                        </form>
+                                            <form method="POST" action="queue_management.php" class="inline" onsubmit="return confirm('Are you sure you want to remove this patient from the queue?');">
+                                                <?php echo csrfField(); ?>
+                                                <input type="hidden" name="action" value="delete_queue">
+                                                <input type="hidden" name="queue_id" value="<?php echo (int)$item['id']; ?>">
+                                                <button type="submit" class="p-1 text-on-surface-variant hover:text-error hover:bg-error-container/30 rounded transition-colors cursor-pointer" title="Remove from Queue">
+                                                    <span class="material-symbols-outlined text-[17px]">delete</span>
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>
@@ -663,6 +751,44 @@ include __DIR__ . '/../components/header.php';
 </div>
 <?php endif; ?>
 
+<!-- MODAL: Put Patient On Hold Confirmation -->
+<div id="hold-patient-modal" class="fixed inset-0 z-50 bg-black/60 hidden backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-surface rounded-2xl border border-outline-variant max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div class="flex items-center gap-3 text-amber-600 dark:text-amber-400">
+            <div class="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-[28px]">pause_circle</span>
+            </div>
+            <div>
+                <h3 class="font-bold text-base text-on-surface">Bukaanka Dib Ma U Dhigtaa?</h3>
+                <p class="text-xs text-on-surface-variant">Xaqiijinta gelinta bukaanka xaaladda On Hold</p>
+            </div>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-surface-container border border-outline-variant text-xs text-on-surface space-y-1.5">
+            <p><strong class="text-on-surface">Bukaanka:</strong> <span id="hold_patient_name" class="font-bold text-primary"></span></p>
+            <p class="text-on-surface-variant leading-relaxed">
+                Bukaankan waxaa si ku meel-gaar ah loogu wareejinayaa safka <strong>On Hold</strong> safkana lagama saari doono. Waxaad awood u leedahay inaad wacato bukaan kale, bukaankanna dib ugu yeerto (Recall) marka uu yimaado.
+            </p>
+        </div>
+
+        <form id="hold-patient-form" method="POST" action="queue_management.php" class="flex justify-end gap-2 pt-2 border-t border-outline-variant">
+            <?php echo csrfField(); ?>
+            <input type="hidden" name="action" value="update_status">
+            <input type="hidden" id="hold_queue_id" name="queue_id" value="">
+            <input type="hidden" name="status" value="on_hold">
+            <input type="hidden" id="hold_redirect" name="redirect" value="queue_management.php">
+
+            <button type="button" onclick="closeHoldPatientModal()" class="px-3.5 py-2 rounded-xl border border-outline-variant text-xs font-semibold text-on-surface hover:bg-surface-container-low cursor-pointer">
+                Ka Noqo (Cancel)
+            </button>
+            <button type="submit" class="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[16px]">pause_circle</span>
+                Haa, Dib U Dhig (On Hold)
+            </button>
+        </form>
+    </div>
+</div>
+
 <script>
     function printQueueTokenTicket(data) {
         document.getElementById('pt-token').textContent = data.token || 'T-001';
@@ -691,10 +817,86 @@ include __DIR__ . '/../components/header.php';
         window.print();
     }
 
+    function openHoldPatientModal(queueId, patientName, redirectUrl = '') {
+        const modal = document.getElementById('hold-patient-modal');
+        if (!modal) return;
+        document.getElementById('hold_queue_id').value = queueId;
+        document.getElementById('hold_patient_name').textContent = patientName || 'Bukaanka';
+        if (redirectUrl) {
+            const redirElem = document.getElementById('hold_redirect');
+            if (redirElem) redirElem.value = redirectUrl;
+        }
+        modal.classList.remove('hidden');
+    }
+
+    function closeHoldPatientModal() {
+        const modal = document.getElementById('hold-patient-modal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    function applyQueueClientFilter() {
+        const input = document.getElementById('queue-search-input');
+        const clearBtn = document.getElementById('queue-search-clear-btn');
+        if (!input) return;
+        const query = input.value.trim().toLowerCase();
+        if (clearBtn) {
+            clearBtn.classList.toggle('hidden', query.length === 0);
+        }
+        const tbody = document.getElementById('queue-table-tbody');
+        if (!tbody) return;
+        const rows = tbody.querySelectorAll('tr');
+        let matched = 0;
+        let existingNoMatch = document.getElementById('queue-no-match-tr');
+
+        rows.forEach(r => {
+            if (r.id === 'queue-no-match-tr') return;
+            const txt = r.textContent.toLowerCase();
+            const show = !query || txt.includes(query);
+            r.style.display = show ? '' : 'none';
+            if (show) matched++;
+        });
+
+        if (matched === 0 && query.length > 0) {
+            if (!existingNoMatch) {
+                existingNoMatch = document.createElement('tr');
+                existingNoMatch.id = 'queue-no-match-tr';
+                existingNoMatch.innerHTML = `
+                    <td colspan="6" class="py-8 text-center text-on-surface-variant">
+                        <span class="material-symbols-outlined text-3xl mb-1 text-outline">person_search</span>
+                        <p class="font-semibold">Wax bukaan ah oo ku habboon baaritaankaaga lama helin.</p>
+                        <p class="text-xs text-on-surface-variant mt-0.5">No patients matching "${query.replace(/</g, '&lt;')}".</p>
+                    </td>
+                `;
+                tbody.appendChild(existingNoMatch);
+            } else {
+                existingNoMatch.style.display = '';
+            }
+        } else if (existingNoMatch) {
+            existingNoMatch.style.display = 'none';
+        }
+    }
+
+    function clearQueueSearch() {
+        const input = document.getElementById('queue-search-input');
+        if (!input) return;
+        input.value = '';
+        if (window.location.search.includes('search=')) {
+            input.form.submit();
+        } else {
+            applyQueueClientFilter();
+            input.focus();
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         <?php if (!empty($printTokenPayload)): ?>
         printQueueTokenTicket(<?php echo json_encode($printTokenPayload, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>);
         <?php endif; ?>
+
+        const qInput = document.getElementById('queue-search-input');
+        if (qInput) {
+            qInput.addEventListener('input', applyQueueClientFilter);
+        }
 
         if (typeof window.initLiveSync === 'function') {
             window.initLiveSync({
@@ -702,11 +904,15 @@ include __DIR__ . '/../components/header.php';
                 targetSelector: '#queue-table-tbody',
                 params: {
                     department: '<?php echo e($deptFilter); ?>',
-                    doctor_id: '<?php echo (int)($doctorFilter ?? 0); ?>',
-                    status: '<?php echo e($statusFilter); ?>'
+                    doctor_id: '<?php echo (int)($scopedDoctorId ?? 0); ?>',
+                    status: '<?php echo e($statusFilter); ?>',
+                    search: '<?php echo e($searchQuery); ?>'
                 },
                 intervalMs: 3500,
-                notifyOnNew: true
+                notifyOnNew: true,
+                onUpdate: function() {
+                    applyQueueClientFilter();
+                }
             });
         }
     });

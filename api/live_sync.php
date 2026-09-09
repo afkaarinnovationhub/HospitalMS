@@ -46,6 +46,7 @@ try {
         // =========================================================================
         case 'doctor_queue':
             $doctorId = ($currentUserRole === ROLE_DOCTOR) ? $currentUserId : (!empty($_GET['doctor_id']) ? (int)$_GET['doctor_id'] : null);
+            $searchQuery = sanitizeString($_GET['search'] ?? '');
             
             // Checksum query (accurately tracks membership changes, doctor reassignments, and statuses)
             if ($doctorId) {
@@ -56,7 +57,7 @@ try {
                            COALESCE(GROUP_CONCAT(CONCAT(id, ':', status) ORDER BY id), '') as state_str
                     FROM patient_queues 
                     WHERE (doctor_id = :doc_id OR doctor_id IS NULL) 
-                      AND status IN ('waiting', 'in_consultation', 'in_lab', 'lab_completed')
+                      AND status IN ('waiting', 'in_consultation', 'on_hold', 'in_lab', 'lab_completed')
                 ");
                 $stmtSum->execute([':doc_id' => $doctorId]);
             } else {
@@ -66,11 +67,11 @@ try {
                            COALESCE(MAX(id), 0) as max_id, 
                            COALESCE(GROUP_CONCAT(CONCAT(id, ':', status) ORDER BY id), '') as state_str
                     FROM patient_queues 
-                    WHERE status IN ('waiting', 'in_consultation', 'in_lab', 'lab_completed')
+                    WHERE status IN ('waiting', 'in_consultation', 'on_hold', 'in_lab', 'lab_completed')
                 ");
             }
             $sumData = $stmtSum->fetch();
-            $serverChecksum = md5('dq_' . ($sumData['cnt'] ?? 0) . '_' . ($sumData['sum_id'] ?? 0) . '_' . ($sumData['state_str'] ?? '') . '_' . ($doctorId ?? 0));
+            $serverChecksum = md5('dq_' . ($sumData['cnt'] ?? 0) . '_' . ($sumData['sum_id'] ?? 0) . '_' . ($sumData['state_str'] ?? '') . '_' . ($doctorId ?? 0) . '_' . $searchQuery);
 
             if ($clientChecksum === $serverChecksum) {
                 echo json_encode(['status' => 'ok', 'changed' => false, 'checksum' => $serverChecksum]);
@@ -82,6 +83,7 @@ try {
             $waitingQueue = PatientOperation::getQueue([
                 'status'    => 'active',
                 'doctor_id' => $doctorId,
+                'search'    => $searchQuery ?: null,
             ]);
 
             // Render HTML partial for Doctor Queue (Exact 5 columns matching doctor_dashboard.php)
@@ -100,25 +102,34 @@ try {
                     $hasVitals = !empty($q['systolic']);
                     $isLabReady = ($q['status'] === 'lab_completed');
                     $isInLab = ($q['status'] === 'in_lab');
+                    $isOnHold = ($q['status'] === 'on_hold');
+                    $isInConsult = ($q['status'] === 'in_consultation');
             ?>
-                <tr class="hover:bg-surface-container-low transition-colors group">
+                <tr class="hover:bg-surface-container-low transition-colors group <?php echo $isInConsult ? 'bg-primary/5 dark:bg-primary/10' : ($isOnHold ? 'bg-amber-500/5' : ''); ?>">
                     <td class="py-3 px-4">
                         <div class="flex items-center gap-2">
                             <span class="font-code-md font-bold text-sm text-primary bg-primary-fixed/40 px-2 py-0.5 rounded">
                                 <?php echo e($q['token_number']); ?>
                             </span>
-                            <?php if ($isUrgent): ?>
-                                <span class="text-xs uppercase font-bold text-error bg-error-container/60 px-2 py-0.5 rounded-full">
-                                    <?php echo e($q['priority']); ?>
+                            <?php if ($isInConsult): ?>
+                                <span class="text-[10px] uppercase font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-full flex items-center gap-0.5 animate-pulse">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span> In Room
                                 </span>
-                            <?php endif; ?>
-                            <?php if ($isLabReady): ?>
+                            <?php elseif ($isOnHold): ?>
+                                <span class="text-[10px] uppercase font-bold text-amber-800 dark:text-amber-300 bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                                    <span class="material-symbols-outlined text-[13px]">pause_circle</span> On Hold
+                                </span>
+                            <?php elseif ($isLabReady): ?>
                                 <span class="text-[10px] uppercase font-bold text-secondary bg-secondary-fixed/50 px-2 py-0.5 rounded-full flex items-center gap-0.5">
                                     <span class="material-symbols-outlined text-[13px]">verified</span> Lab Results Ready
                                 </span>
                             <?php elseif ($isInLab): ?>
                                 <span class="text-[10px] uppercase font-bold text-primary bg-primary-fixed/40 px-2 py-0.5 rounded-full">
                                     In Lab
+                                </span>
+                            <?php elseif ($isUrgent): ?>
+                                <span class="text-xs uppercase font-bold text-error bg-error-container/60 px-2 py-0.5 rounded-full">
+                                    <?php echo e($q['priority']); ?>
                                 </span>
                             <?php endif; ?>
                             <?php if (!empty($q['invoice_due']) && (float)$q['invoice_due'] > 0 && ($q['invoice_status'] ?? '') === 'partial'): ?>
@@ -146,10 +157,55 @@ try {
                         <?php endif; ?>
                     </td>
                     <td class="py-3 px-4 text-right">
-                        <a href="consultation_michael_chen.php?id=<?php echo (int)$q['patient_id']; ?>&queue_id=<?php echo (int)$q['id']; ?>" class="inline-flex items-center gap-1 px-3.5 py-1.5 <?php echo $isLabReady ? 'bg-secondary hover:bg-on-secondary-container text-on-secondary' : 'bg-primary hover:bg-primary-container text-on-primary'; ?> font-bold rounded-lg text-xs shadow-xs transition-colors cursor-pointer">
-                            <span class="material-symbols-outlined text-[16px]"><?php echo $isLabReady ? 'assignment_turned_in' : 'stethoscope'; ?></span>
-                            <?php echo $isLabReady ? 'Review Lab & Prescribe' : ($isInLab ? 'View Chart' : 'Start Consult'); ?>
-                        </a>
+                        <div class="flex items-center justify-end gap-1.5">
+                            <?php if ($isInConsult): ?>
+                                <a href="consultation_michael_chen.php?id=<?php echo (int)$q['patient_id']; ?>&queue_id=<?php echo (int)$q['id']; ?>" class="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-xs transition-colors cursor-pointer">
+                                    <span class="material-symbols-outlined text-[15px]">stethoscope</span>
+                                    Open Chart
+                                </a>
+                                <button type="button" 
+                                        onclick="openHoldPatientModal(<?php echo (int)$q['id']; ?>, '<?php echo e(addslashes($q['patient_name'])); ?>', 'doctor_dashboard.php')" 
+                                        class="p-1.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-800 dark:text-amber-300 font-bold text-xs rounded-lg transition-colors cursor-pointer" 
+                                        title="Put On Hold if absent">
+                                    <span class="material-symbols-outlined text-[16px]">pause_circle</span>
+                                </button>
+                            <?php elseif ($isOnHold): ?>
+                                <form method="POST" action="doctor_dashboard.php" class="inline">
+                                    <?php echo csrfField(); ?>
+                                    <input type="hidden" name="action" value="call_patient">
+                                    <input type="hidden" name="queue_id" value="<?php echo (int)$q['id']; ?>">
+                                    <button type="submit" class="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs shadow-xs transition-colors cursor-pointer">
+                                        <span class="material-symbols-outlined text-[15px]">replay</span>
+                                        Recall
+                                    </button>
+                                </form>
+                            <?php elseif ($isLabReady): ?>
+                                <form method="POST" action="doctor_dashboard.php" class="inline">
+                                    <?php echo csrfField(); ?>
+                                    <input type="hidden" name="action" value="call_patient">
+                                    <input type="hidden" name="queue_id" value="<?php echo (int)$q['id']; ?>">
+                                    <button type="submit" class="inline-flex items-center gap-1 px-3 py-1.5 bg-secondary hover:bg-on-secondary-container text-on-secondary font-bold rounded-lg text-xs shadow-xs transition-colors cursor-pointer">
+                                        <span class="material-symbols-outlined text-[15px]">assignment_turned_in</span>
+                                        Review Lab
+                                    </button>
+                                </form>
+                            <?php elseif ($isInLab): ?>
+                                <a href="consultation_michael_chen.php?id=<?php echo (int)$q['patient_id']; ?>&queue_id=<?php echo (int)$q['id']; ?>" class="inline-flex items-center gap-1 px-3 py-1.5 bg-surface-container border border-outline-variant hover:bg-surface-container-high text-on-surface font-semibold rounded-lg text-xs transition-colors">
+                                    <span class="material-symbols-outlined text-[15px]">visibility</span>
+                                    View Order
+                                </a>
+                            <?php else: ?>
+                                <form method="POST" action="doctor_dashboard.php" class="inline">
+                                    <?php echo csrfField(); ?>
+                                    <input type="hidden" name="action" value="call_patient">
+                                    <input type="hidden" name="queue_id" value="<?php echo (int)$q['id']; ?>">
+                                    <button type="submit" class="inline-flex items-center gap-1 px-3.5 py-1.5 bg-primary hover:bg-primary-container text-on-primary font-bold rounded-lg text-xs shadow-xs transition-colors cursor-pointer">
+                                        <span class="material-symbols-outlined text-[15px]">play_arrow</span>
+                                        Call In
+                                    </button>
+                                </form>
+                            <?php endif; ?>
+                        </div>
                     </td>
                 </tr>
             <?php endforeach; endif;
@@ -293,15 +349,36 @@ try {
         // =========================================================================
         case 'hospital_queue':
             $deptFilter   = sanitizeString($_GET['department'] ?? 'all');
-            $doctorFilter = !empty($_GET['doctor_id']) ? (int)$_GET['doctor_id'] : null;
             $statusFilter = sanitizeString($_GET['status'] ?? 'all');
+            $searchQuery  = sanitizeString($_GET['search'] ?? '');
 
-            $stmtSum = $pdo->query("
-                SELECT COUNT(*) as cnt, MAX(id) as max_id, MAX(status) as max_status
+            if ($currentUserRole === ROLE_DOCTOR) {
+                $doctorFilter = $currentUserId;
+            } else {
+                $doctorFilter = !empty($_GET['doctor_id']) ? (int)$_GET['doctor_id'] : null;
+            }
+
+            $sumWhere = [];
+            $sumParams = [];
+            if ($doctorFilter) {
+                $sumWhere[] = "(doctor_id = :doc_id OR doctor_id IS NULL)";
+                $sumParams[':doc_id'] = $doctorFilter;
+            }
+            if ($deptFilter && $deptFilter !== 'all') {
+                $sumWhere[] = "department = :dept";
+                $sumParams[':dept'] = $deptFilter;
+            }
+            $sumWhereSql = !empty($sumWhere) ? ('WHERE ' . implode(' AND ', $sumWhere)) : '';
+
+            $stmtSum = $pdo->prepare("
+                SELECT COUNT(*) as cnt, MAX(id) as max_id, MAX(status) as max_status,
+                       COALESCE(GROUP_CONCAT(CONCAT(id, ':', status) ORDER BY id), '') as state_str
                 FROM patient_queues
+                {$sumWhereSql}
             ");
+            $stmtSum->execute($sumParams);
             $sumData = $stmtSum->fetch();
-            $serverChecksum = md5('hq_' . ($sumData['cnt'] ?? 0) . '_' . ($sumData['max_id'] ?? 0) . '_' . ($sumData['max_status'] ?? '') . '_' . $deptFilter . '_' . $doctorFilter . '_' . $statusFilter);
+            $serverChecksum = md5('hq_' . ($sumData['cnt'] ?? 0) . '_' . ($sumData['max_id'] ?? 0) . '_' . ($sumData['state_str'] ?? '') . '_' . $deptFilter . '_' . ($doctorFilter ?? 0) . '_' . $statusFilter . '_' . $searchQuery);
 
             if ($clientChecksum === $serverChecksum) {
                 echo json_encode(['status' => 'ok', 'changed' => false, 'checksum' => $serverChecksum]);
@@ -312,7 +389,8 @@ try {
             $queue = PatientOperation::getQueue(
                 ($statusFilter === 'all') ? null : $statusFilter,
                 $doctorFilter,
-                ($deptFilter === 'all') ? null : $deptFilter
+                ($deptFilter === 'all') ? null : $deptFilter,
+                $searchQuery ?: null
             );
 
             ob_start();
@@ -357,7 +435,13 @@ try {
                         <?php if ($item['status'] === 'waiting'): ?>
                             <span class="bg-surface-variant text-on-surface-variant font-label-md text-[10px] px-2 py-0.5 rounded-full font-semibold">Waiting</span>
                         <?php elseif ($item['status'] === 'in_consultation'): ?>
-                            <span class="bg-primary-container text-on-primary-container font-label-md text-[10px] px-2 py-0.5 rounded-full font-bold">In Consultation</span>
+                            <span class="bg-primary-container text-on-primary-container font-label-md text-[10px] px-2 py-0.5 rounded-full font-bold animate-pulse">In Consultation</span>
+                        <?php elseif ($item['status'] === 'on_hold'): ?>
+                            <span class="bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-label-md text-[10px] px-2 py-0.5 rounded-full font-bold">On Hold</span>
+                        <?php elseif ($item['status'] === 'in_lab'): ?>
+                            <span class="bg-purple-500/15 border border-purple-500/30 text-purple-800 dark:text-purple-300 font-label-md text-[10px] px-2 py-0.5 rounded-full font-bold">In Lab</span>
+                        <?php elseif ($item['status'] === 'lab_completed'): ?>
+                            <span class="bg-teal-500/15 border border-teal-500/30 text-teal-800 dark:text-teal-300 font-label-md text-[10px] px-2 py-0.5 rounded-full font-bold">Lab Ready</span>
                         <?php elseif ($item['status'] === 'completed'): ?>
                             <span class="bg-secondary-fixed text-on-secondary-fixed font-label-md text-[10px] px-2 py-0.5 rounded-full font-bold">Completed</span>
                         <?php else: ?>
@@ -372,14 +456,39 @@ try {
                                     <input type="hidden" name="action" value="update_status">
                                     <input type="hidden" name="queue_id" value="<?php echo (int)$item['id']; ?>">
                                     <input type="hidden" name="status" value="in_consultation">
-                                    <button type="submit" class="px-2 py-1 bg-primary text-on-primary rounded text-[11px] font-bold hover:bg-primary-container transition-colors cursor-pointer">
+                                    <button type="submit" class="px-2 py-1 bg-primary text-on-primary rounded text-[11px] font-bold hover:bg-primary-container transition-colors cursor-pointer" title="Call in to consultation">
                                         Call In
                                     </button>
                                 </form>
                             <?php elseif ($item['status'] === 'in_consultation'): ?>
-                                <a href="consultation_michael_chen.php" class="px-2 py-1 bg-secondary text-on-secondary rounded text-[11px] font-bold hover:bg-on-secondary-container transition-colors">
+                                <a href="consultation_michael_chen.php?id=<?php echo (int)$item['patient_id']; ?>&queue_id=<?php echo (int)$item['id']; ?>" class="px-2 py-1 bg-primary text-on-primary rounded text-[11px] font-bold hover:bg-primary/90 transition-colors" title="Open patient consultation room">
                                     Consult
                                 </a>
+                                <button type="button" 
+                                        onclick="openHoldPatientModal(<?php echo (int)$item['id']; ?>, '<?php echo e(addslashes($item['patient_name'])); ?>', 'queue_management.php')" 
+                                        class="px-2 py-1 bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 hover:bg-amber-500/25 rounded text-[11px] font-bold transition-colors cursor-pointer" 
+                                        title="Put patient on hold if temporarily away">
+                                    Hold
+                                </button>
+                                <form method="POST" action="queue_management.php" class="inline">
+                                    <?php echo csrfField(); ?>
+                                    <input type="hidden" name="action" value="update_status">
+                                    <input type="hidden" name="queue_id" value="<?php echo (int)$item['id']; ?>">
+                                    <input type="hidden" name="status" value="completed">
+                                    <button type="submit" class="px-2 py-1 bg-surface-container border border-outline-variant hover:bg-surface-container-high rounded text-[11px] font-bold text-on-surface cursor-pointer">
+                                        Done
+                                    </button>
+                                </form>
+                            <?php elseif ($item['status'] === 'on_hold' || $item['status'] === 'lab_completed'): ?>
+                                <form method="POST" action="queue_management.php" class="inline">
+                                    <?php echo csrfField(); ?>
+                                    <input type="hidden" name="action" value="update_status">
+                                    <input type="hidden" name="queue_id" value="<?php echo (int)$item['id']; ?>">
+                                    <input type="hidden" name="status" value="in_consultation">
+                                    <button type="submit" class="px-2 py-1 bg-primary text-on-primary rounded text-[11px] font-bold hover:bg-primary-container transition-colors cursor-pointer" title="Recall patient into consultation">
+                                        Recall
+                                    </button>
+                                </form>
                                 <form method="POST" action="queue_management.php" class="inline">
                                     <?php echo csrfField(); ?>
                                     <input type="hidden" name="action" value="update_status">
@@ -391,6 +500,7 @@ try {
                                 </form>
                             <?php endif; ?>
 
+                            <?php if ($currentUserRole !== ROLE_DOCTOR): ?>
                             <button type="button" 
                                     onclick="openEditQueueModal(<?php echo (int)$item['id']; ?>, '<?php echo e(addslashes($item['patient_name'])); ?>', <?php echo (int)($item['doctor_id'] ?? 0); ?>, '<?php echo e(addslashes($item['department'])); ?>', '<?php echo e($item['priority']); ?>', <?php echo (float)($item['invoice_paid'] ?? 0.00); ?>, <?php echo (float)($item['current_doctor_fee'] ?? 10.00); ?>, <?php echo (float)($item['account_credit'] ?? 0.00); ?>)" 
                                     class="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded transition-colors cursor-pointer" 
@@ -405,6 +515,7 @@ try {
                                     <span class="material-symbols-outlined text-[17px]">delete</span>
                                 </button>
                             </form>
+                            <?php endif; ?>
                         </div>
                     </td>
                 </tr>

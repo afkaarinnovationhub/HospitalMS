@@ -130,7 +130,7 @@ $brandHomeUrl = getRoleDefaultPage($userRole);
         <a href="<?php echo htmlspecialchars($brandHomeUrl); ?>" class="flex items-center gap-sm min-w-0">
             <span class="material-symbols-outlined text-primary dark:text-primary-fixed text-[32px] fill shrink-0">local_hospital</span>
             <div class="sidebar-text transition-opacity duration-200">
-                <h1 class="font-headline-md text-base sm:text-headline-md font-bold text-primary dark:text-primary-fixed leading-tight truncate">MedCore Systems</h1>
+                <h1 class="font-headline-md text-base sm:text-headline-md font-bold text-primary dark:text-primary-fixed leading-tight truncate">CIBAAR</h1>
                 <p class="font-label-md text-[11px] text-on-surface-variant truncate">Clinical Operations</p>
             </div>
         </a>

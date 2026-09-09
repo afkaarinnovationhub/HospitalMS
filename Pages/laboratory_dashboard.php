@@ -1067,9 +1067,13 @@ include __DIR__ . '/../components/header.php';
                 <div>
                     <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Category / Panel</label>
                     <select name="category" required class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-2 text-xs text-on-surface focus:border-primary outline-none">
-                        <?php foreach ($labCategories as $cat): ?>
-                            <option value="<?php echo e($cat['name']); ?>"><?php echo e($cat['name']); ?></option>
-                        <?php endforeach; ?>
+                        <?php if (empty($labCategories)): ?>
+                            <option value="" disabled selected>No categories defined — click "+ Add Category" first</option>
+                        <?php else: ?>
+                            <?php foreach ($labCategories as $cat): ?>
+                                <option value="<?php echo e($cat['name']); ?>"><?php echo e($cat['name']); ?></option>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
                     </select>
                 </div>
                 <div>
@@ -1136,9 +1140,13 @@ include __DIR__ . '/../components/header.php';
                 <div>
                     <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Category / Panel</label>
                     <select name="category" id="edit_category" required class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-2 text-xs text-on-surface focus:border-primary outline-none">
-                        <?php foreach ($labCategories as $cat): ?>
-                            <option value="<?php echo e($cat['name']); ?>"><?php echo e($cat['name']); ?></option>
-                        <?php endforeach; ?>
+                        <?php if (empty($labCategories)): ?>
+                            <option value="" disabled selected>No categories defined — click "+ Add Category" first</option>
+                        <?php else: ?>
+                            <?php foreach ($labCategories as $cat): ?>
+                                <option value="<?php echo e($cat['name']); ?>"><?php echo e($cat['name']); ?></option>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
                     </select>
                 </div>
                 <div>

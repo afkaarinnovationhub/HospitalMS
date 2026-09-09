@@ -821,7 +821,7 @@ class AccountingOperation
         $stmtInv->execute([$asOfDate]);
         $inventoryAsset = (float)$stmtInv->fetchColumn();
         if ($inventoryAsset <= 0) {
-            $inventoryAsset = (float)$pdo->query("SELECT COALESCE(SUM(current_stock * cost_price), 0) FROM medications")->fetchColumn();
+            $inventoryAsset = (float)$pdo->query("SELECT COALESCE(SUM(quantity_remaining * CASE WHEN unit_cost > 0 THEN unit_cost ELSE cost_price END), 0) FROM medicine_batches WHERE status = 'active' AND quantity_remaining > 0")->fetchColumn();
         }
 
         // F. Fixed Assets (1500) (Medical Equipment & Machinery)

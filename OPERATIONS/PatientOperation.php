@@ -410,13 +410,14 @@ class PatientOperation
      * @param string|null $department
      * @return array
      */
-    public static function getQueue($status = 'waiting', ?int $doctorId = null, ?string $department = null): array
+    public static function getQueue($status = 'waiting', ?int $doctorId = null, ?string $department = null, ?string $search = null): array
     {
         if (is_array($status)) {
             $options = $status;
             $status     = $options['status'] ?? 'waiting';
             $doctorId   = !empty($options['doctor_id']) ? (int)$options['doctor_id'] : $doctorId;
             $department = !empty($options['department']) ? $options['department'] : $department;
+            $search     = !empty($options['search']) ? $options['search'] : $search;
         }
 
         $pdo = getDBConnection();
@@ -433,7 +434,7 @@ class PatientOperation
             }
             $where[] = "q.status IN (" . implode(',', $placeholders) . ")";
         } elseif ($status === 'active') {
-            $where[] = "q.status IN ('waiting', 'in_consultation', 'in_lab', 'lab_completed')";
+            $where[] = "q.status IN ('waiting', 'in_consultation', 'on_hold', 'in_lab', 'lab_completed')";
         } elseif ($status && $status !== 'all') {
             $where[] = "q.status = :status";
             $params[':status'] = $status;
@@ -447,6 +448,17 @@ class PatientOperation
         if ($department) {
             $where[] = "q.department = :dept";
             $params[':dept'] = $department;
+        }
+
+        if (!empty($search)) {
+            $sVal = '%' . trim($search) . '%';
+            $where[] = "(p.first_name LIKE :s1 OR p.last_name LIKE :s2 OR CONCAT(p.first_name, ' ', p.last_name) LIKE :s3 OR p.mrn LIKE :s4 OR p.phone LIKE :s5 OR q.token_number LIKE :s6)";
+            $params[':s1'] = $sVal;
+            $params[':s2'] = $sVal;
+            $params[':s3'] = $sVal;
+            $params[':s4'] = $sVal;
+            $params[':s5'] = $sVal;
+            $params[':s6'] = $sVal;
         }
 
         $whereSql = !empty($where) ? ('WHERE ' . implode(' AND ', $where)) : '';
@@ -494,8 +506,8 @@ class PatientOperation
             ) v ON p.id = v.patient_id
             {$whereSql}
             ORDER BY 
+                FIELD(q.status, 'in_consultation', 'waiting', 'on_hold', 'lab_completed', 'in_lab', 'completed', 'cancelled'),
                 FIELD(q.priority, 'emergency', 'urgent', 'normal'),
-                FIELD(q.status, 'in_consultation', 'waiting', 'completed', 'cancelled'),
                 q.queued_at ASC
         ";
 
@@ -514,17 +526,20 @@ class PatientOperation
     public static function updateQueueStatus(int $queueId, string $newStatus): bool
     {
         $pdo = getDBConnection();
-        $allowed = ['waiting', 'in_consultation', 'completed', 'cancelled'];
+        $allowed = ['waiting', 'in_consultation', 'on_hold', 'completed', 'cancelled'];
         if (!in_array($newStatus, $allowed, true)) {
             throw new InvalidArgumentException("Invalid queue status '{$newStatus}'.");
         }
 
-        $callSql = ($newStatus === 'in_consultation') ? ', called_at = NOW()' : '';
+        if ($newStatus === 'in_consultation') {
+            return self::callPatientForDoctor($queueId);
+        }
+
         $compSql = ($newStatus === 'completed') ? ', completed_at = NOW()' : '';
 
         $stmt = $pdo->prepare("
             UPDATE patient_queues 
-            SET status = :status {$callSql} {$compSql}
+            SET status = :status {$compSql}
             WHERE id = :id
         ");
 
@@ -532,6 +547,44 @@ class PatientOperation
             ':status' => $newStatus,
             ':id'     => $queueId,
         ]);
+    }
+
+    /**
+     * Calls a specific patient for a doctor encounter.
+     * Moves any previous active encounter for this doctor to 'on_hold' so the queue is never blocked.
+     *
+     * @param int $queueId
+     * @param int|null $doctorId
+     * @return bool
+     */
+    public static function callPatientForDoctor(int $queueId, ?int $doctorId = null): bool
+    {
+        $pdo = getDBConnection();
+
+        if ($doctorId === null) {
+            $stmtDoc = $pdo->prepare("SELECT doctor_id FROM patient_queues WHERE id = ?");
+            $stmtDoc->execute([$queueId]);
+            $doctorId = (int)$stmtDoc->fetchColumn();
+        }
+
+        if ($doctorId > 0) {
+            $stmtHold = $pdo->prepare("
+                UPDATE patient_queues 
+                SET status = 'on_hold' 
+                WHERE doctor_id = :doc_id AND status = 'in_consultation' AND id != :queue_id
+            ");
+            $stmtHold->execute([
+                ':doc_id'   => $doctorId,
+                ':queue_id' => $queueId,
+            ]);
+        }
+
+        $stmtCall = $pdo->prepare("
+            UPDATE patient_queues 
+            SET status = 'in_consultation', called_at = NOW() 
+            WHERE id = :queue_id
+        ");
+        return $stmtCall->execute([':queue_id' => $queueId]);
     }
 
     /**
@@ -774,7 +827,7 @@ class PatientOperation
             $stmtReg->execute([':d1' => $doctorId, ':d2' => $doctorId]);
             $todayRegistered = (int)$stmtReg->fetchColumn();
 
-            $stmtW = $pdo->prepare("SELECT COUNT(*) FROM patient_queues WHERE status IN ('waiting', 'triaged', 'in_lab') AND doctor_id = ?");
+            $stmtW = $pdo->prepare("SELECT COUNT(*) FROM patient_queues WHERE status IN ('waiting', 'on_hold', 'triaged', 'in_lab') AND doctor_id = ?");
             $stmtW->execute([$doctorId]);
             $waitingInQueue = (int)$stmtW->fetchColumn();
 
@@ -788,7 +841,7 @@ class PatientOperation
         } else {
             $totalPatients = (int)$pdo->query("SELECT COUNT(*) FROM patients")->fetchColumn();
             $todayRegistered = (int)$pdo->query("SELECT COUNT(*) FROM patients WHERE DATE(created_at) = CURDATE()")->fetchColumn();
-            $waitingInQueue = (int)$pdo->query("SELECT COUNT(*) FROM patient_queues WHERE status IN ('waiting', 'triaged', 'in_lab')")->fetchColumn();
+            $waitingInQueue = (int)$pdo->query("SELECT COUNT(*) FROM patient_queues WHERE status IN ('waiting', 'on_hold', 'triaged', 'in_lab')")->fetchColumn();
             $inConsultation = (int)$pdo->query("SELECT COUNT(*) FROM patient_queues WHERE status = 'in_consultation'")->fetchColumn();
             $completedToday = (int)$pdo->query("SELECT COUNT(*) FROM patient_queues WHERE status = 'completed' AND DATE(completed_at) = CURDATE()")->fetchColumn();
         }
@@ -832,21 +885,18 @@ class PatientOperation
     public static function seedDefaultPatientsIfEmpty(bool $force = false): void
     {
         $pdo = getDBConnection();
+        try {
+            $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES ('patients_seeded', '1') ON DUPLICATE KEY UPDATE setting_value = '1'")->execute();
+        } catch (Exception $e) {}
+        return; // Strictly production mode: Never seed mock patients.
+    }
 
-        if (!$force) {
-            try {
-                $isSeeded = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'patients_seeded'")->fetchColumn();
-                if ($isSeeded === '1') {
-                    return; // Already initialized once. Never auto-reseed if user deleted records!
-                }
-            } catch (Exception $e) {
-                // Table might not exist in old test runs, proceed
-            }
-        }
-
-        $count = (int)$pdo->query("SELECT COUNT(*) FROM patients")->fetchColumn();
-
-        if ($count === 0) {
+    private static function _legacySeedDefaultPatients(): void
+    {
+        $pdo = getDBConnection();
+        $adminUser = 1;
+        $doctorUser = 1;
+        if (false) {
             $adminUser = (int)($pdo->query("SELECT id FROM users WHERE role = 'superadmin_ict' OR role = 'manager' LIMIT 1")->fetchColumn() ?: 1);
             $doctorUser = (int)($pdo->query("SELECT id FROM users WHERE role = 'doctor' LIMIT 1")->fetchColumn() ?: $adminUser);
 

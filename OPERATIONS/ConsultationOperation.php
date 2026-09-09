@@ -389,13 +389,15 @@ class ConsultationOperation
     {
         $pdo = getDBConnection();
 
-        $waitingCount = (int)$pdo->query("SELECT COUNT(*) FROM patient_queues WHERE doctor_id = {$doctorId} AND status = 'waiting' AND DATE(queued_at) = CURDATE()")->fetchColumn();
+        $waitingCount = (int)$pdo->query("SELECT COUNT(*) FROM patient_queues WHERE doctor_id = {$doctorId} AND status IN ('waiting', 'on_hold') AND DATE(queued_at) = CURDATE()")->fetchColumn();
+        $onHoldCount = (int)$pdo->query("SELECT COUNT(*) FROM patient_queues WHERE doctor_id = {$doctorId} AND status = 'on_hold' AND DATE(queued_at) = CURDATE()")->fetchColumn();
         $completedToday = (int)$pdo->query("SELECT COUNT(*) FROM patient_queues WHERE doctor_id = {$doctorId} AND status = 'completed' AND DATE(completed_at) = CURDATE()")->fetchColumn();
         $inConsultation = (int)$pdo->query("SELECT COUNT(*) FROM patient_queues WHERE doctor_id = {$doctorId} AND status = 'in_consultation'")->fetchColumn();
         $totalPatientsToday = (int)$pdo->query("SELECT COUNT(*) FROM patient_queues WHERE doctor_id = {$doctorId} AND DATE(queued_at) = CURDATE()")->fetchColumn();
 
         return [
             'waiting_patients'    => $waitingCount,
+            'on_hold_count'       => $onHoldCount,
             'completed_today'     => $completedToday,
             'in_consultation'     => $inConsultation,
             'total_today'         => $totalPatientsToday,

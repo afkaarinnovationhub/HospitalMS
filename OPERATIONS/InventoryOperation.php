@@ -27,7 +27,15 @@ class InventoryOperation
         $sql = "
             SELECT 
                 m.*,
-                (SELECT MIN(b.expiry_date) FROM medicine_batches b WHERE b.medication_id = m.id AND b.quantity_remaining > 0) as nearest_expiry
+                (SELECT MIN(b.expiry_date) FROM medicine_batches b WHERE b.medication_id = m.id AND b.quantity_remaining > 0) as nearest_expiry,
+                COALESCE(
+                    (SELECT CASE WHEN b.unit_cost > 0 THEN b.unit_cost ELSE b.cost_price END 
+                     FROM medicine_batches b 
+                     WHERE b.medication_id = m.id AND b.quantity_remaining > 0 AND b.status = 'active'
+                     ORDER BY CASE WHEN b.expiry_date IS NULL THEN 1 ELSE 0 END ASC, b.expiry_date ASC, b.received_date ASC, b.id ASC 
+                     LIMIT 1),
+                    m.cost_price
+                ) as next_fifo_cost
             FROM medications m
             WHERE 1=1
         ";
@@ -421,6 +429,14 @@ class InventoryOperation
      * @param array $data
      * @return int Purchase ID
      */
+    /**
+     * Alias for recordPurchaseOrder
+     */
+    public static function createPurchase(array $data): int
+    {
+        return self::recordPurchaseOrder($data);
+    }
+
     public static function recordPurchaseOrder(array $data): int
     {
         $pdo = getDBConnection();
@@ -431,7 +447,7 @@ class InventoryOperation
             $supplierId   = (int)$data['supplier_id'];
             $quantity     = (int)$data['quantity'];
             $costPrice    = (float)$data['cost_price'];
-            $sellingPrice = (float)($data['unit_price'] ?? 0);
+            $sellingPrice = (float)($data['unit_price'] ?? $data['selling_price'] ?? 0);
             $batchNumber  = trim($data['batch_number'] ?? ('BT-' . strtoupper(bin2hex(random_bytes(3)))));
             $expiryDate   = $data['expiry_date'] ?? date('Y-m-d', strtotime('+2 years'));
             $purchaseDate = $data['purchase_date'] ?? date('Y-m-d');
@@ -522,49 +538,7 @@ class InventoryOperation
                 ]);
             }
 
-            // 3. Insert Batch Record
-            $stmtBatch = $pdo->prepare("
-                INSERT INTO medicine_batches (medication_id, purchase_id, batch_number, quantity_received, quantity_remaining, cost_price, expiry_date, received_date)
-                VALUES (:medication_id, :purchase_id, :batch_number, :quantity_received, :quantity_remaining, :cost_price, :expiry_date, :received_date)
-            ");
-            $stmtBatch->execute([
-                ':medication_id'      => $medicationId,
-                ':purchase_id'        => $purchaseId,
-                ':batch_number'       => $batchNumber,
-                ':quantity_received'  => $quantity,
-                ':quantity_remaining' => $quantity,
-                ':cost_price'         => $costPrice,
-                ':expiry_date'        => $expiryDate,
-                ':received_date'      => $purchaseDate,
-            ]);
-
-            // 4. Update Medication Current Stock & Selling Price if specified
-            $stmtUpdateMed = $pdo->prepare("
-                UPDATE medications 
-                SET current_stock = current_stock + :qty,
-                    cost_price = :cost_price,
-                    unit_price = CASE WHEN :selling_price_check > 0 THEN :selling_price_val ELSE unit_price END
-                WHERE id = :id
-            ");
-            $stmtUpdateMed->execute([
-                ':qty'                 => $quantity,
-                ':cost_price'          => $costPrice,
-                ':selling_price_check' => $sellingPrice,
-                ':selling_price_val'   => $sellingPrice,
-                ':id'                  => $medicationId,
-            ]);
-
-            $pdo->prepare("
-                UPDATE medications 
-                SET status = CASE 
-                    WHEN current_stock <= 0 THEN 'out_of_stock'
-                    WHEN current_stock <= min_stock_alert THEN 'low_stock'
-                    ELSE 'in_stock'
-                END
-                WHERE id = ?
-            ")->execute([$medicationId]);
-
-            // 5. Post Balanced Double-Entry Journal to General Ledger
+            // 3. Post Balanced Double-Entry Journal to General Ledger FIRST to get journal_entry_id
             AccountingOperation::seedChartOfAccountsIfEmpty();
             $invAcc = AccountingOperation::getAccountByCode('1200'); // Pharmacy Inventory Asset
             $apAcc  = AccountingOperation::getAccountByCode('2010'); // Accounts Payable (Vendors)
@@ -576,10 +550,11 @@ class InventoryOperation
             };
             $cashAcc = AccountingOperation::getAccountByCode($assetAccountCode);
 
+            $journalEntryId = null;
             if ($invAcc && $netAmount > 0) {
                 $journalItems = [];
 
-                // Debit: Inventory Asset for total net purchased value
+                // Debit: Inventory Asset for total net purchased value (quantity × unit_cost)
                 $journalItems[] = [
                     'account_id' => (int)$invAcc['id'],
                     'debit'      => $netAmount,
@@ -607,15 +582,106 @@ class InventoryOperation
                     ];
                 }
 
-                AccountingOperation::recordJournalEntry(
+                $journalEntryId = AccountingOperation::recordJournalEntry(
                     $purchaseDate,
-                    'inventory_purchase',
+                    'supplier_restock',
                     $purchaseId,
                     "Medication Restock [{$poNumber}]: Net \${$netAmount} (Paid: \${$paidAmount}, Due: \${$dueAmount})",
                     $journalItems,
                     $userId
                 );
             }
+
+            // 4. Insert Batch Record (Linked to purchase journal entry)
+            // Never overwrite or average into existing batches — each batch is independent
+            $batchNumFinal = !empty($batchNumber) ? $batchNumber : ('BT-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4)));
+            $stmtBatch = $pdo->prepare("
+                INSERT INTO medicine_batches (
+                    medication_id, supplier_id, purchase_id, purchase_transaction_id, 
+                    batch_number, quantity_received, quantity_remaining, unit_cost, cost_price, 
+                    expiry_date, received_date, status
+                )
+                VALUES (
+                    :medication_id, :supplier_id, :purchase_id, :purchase_transaction_id, 
+                    :batch_number, :quantity_received, :quantity_remaining, :unit_cost, :cost_price, 
+                    :expiry_date, :received_date, 'active'
+                )
+            ");
+            $stmtBatch->execute([
+                ':medication_id'           => $medicationId,
+                ':supplier_id'             => $supplierId ?: null,
+                ':purchase_id'             => $purchaseId,
+                ':purchase_transaction_id' => $journalEntryId,
+                ':batch_number'            => $batchNumFinal,
+                ':quantity_received'       => $quantity,
+                ':quantity_remaining'      => $quantity,
+                ':unit_cost'               => $costPrice,
+                ':cost_price'              => $costPrice,
+                ':expiry_date'             => $expiryDate,
+                ':received_date'           => $purchaseDate,
+            ]);
+            $batchId = (int)$pdo->lastInsertId();
+
+            // Record Movement Audit Trail for this purchase
+            $stmtMbm = $pdo->prepare("
+                INSERT INTO medicine_batch_movements (
+                    batch_id, movement_type, quantity, unit_cost, total_cost, reference_transaction_id, notes, created_by
+                )
+                VALUES (
+                    :batch_id, 'purchase', :quantity, :unit_cost, :total_cost, :ref_tx, :notes, :created_by
+                )
+            ");
+            $stmtMbm->execute([
+                ':batch_id'    => $batchId,
+                ':quantity'    => $quantity,
+                ':unit_cost'   => $costPrice,
+                ':total_cost'  => round($quantity * $costPrice, 2),
+                ':ref_tx'      => $poNumber,
+                ':notes'       => "Restock batch {$batchNumFinal} for PO {$poNumber}",
+                ':created_by'  => $userId,
+            ]);
+
+            // 5. Update Medication Current Stock only (Never silently overwrite selling_price!)
+            $stmtUpdateStock = $pdo->prepare("
+                UPDATE medications 
+                SET current_stock = current_stock + :qty
+                WHERE id = :id
+            ");
+            $stmtUpdateStock->execute([
+                ':qty' => $quantity,
+                ':id'  => $medicationId,
+            ]);
+
+            // Only update medication-level selling_price if explicitly confirmed by staff
+            $confirmPriceUpdate = !empty($data['confirm_price_update']);
+            if ($confirmPriceUpdate && $sellingPrice > 0) {
+                $stmtCurPrice = $pdo->prepare("SELECT unit_price FROM medications WHERE id = ?");
+                $stmtCurPrice->execute([$medicationId]);
+                $oldPrice = (float)$stmtCurPrice->fetchColumn();
+
+                if (abs($sellingPrice - $oldPrice) > 0.001) {
+                    $stmtUpdatePrice = $pdo->prepare("UPDATE medications SET unit_price = ? WHERE id = ?");
+                    $stmtUpdatePrice->execute([$sellingPrice, $medicationId]);
+
+                    self::logSellingPriceChange(
+                        $medicationId,
+                        $oldPrice,
+                        $sellingPrice,
+                        $userId,
+                        "Updated during restock {$poNumber} (Staff explicitly confirmed update for all future sales)"
+                    );
+                }
+            }
+
+            $pdo->prepare("
+                UPDATE medications 
+                SET status = CASE 
+                    WHEN current_stock <= 0 THEN 'out_of_stock'
+                    WHEN current_stock <= min_stock_alert THEN 'low_stock'
+                    ELSE 'in_stock'
+                END
+                WHERE id = ?
+            ")->execute([$medicationId]);
 
             $pdo->commit();
             return $purchaseId;
@@ -810,33 +876,142 @@ class InventoryOperation
     }
 
     /**
-     * Seeds initial master catalog medications and suppliers with 0 stock.
-     * All inventory quantities must be acquired through real supplier purchase orders.
+     * Acknowledges default inventory seed state without inserting mock medications.
+     * Preserves a strictly user-managed medication catalog.
      */
     public static function seedDefaultInventoryIfEmpty(): void
     {
         $pdo = getDBConnection();
-        $medCount = (int)$pdo->query("SELECT COUNT(*) FROM medications")->fetchColumn();
-
-        if ($medCount === 0) {
-            // Single Master Reference Medication (Initial Stock = 0, Out of Stock)
-            $medications = [
-                [
-                    'med_code'        => 'MED-AMX-500',
-                    'name'            => 'Amoxicillin 500mg (Capsules)',
-                    'generic_name'    => 'Amoxicillin Trihydrate',
-                    'category'        => 'Antibiotics',
-                    'dosage_form'     => 'Capsule (Box of 20)',
-                    'unit_price'      => 5.00,
-                    'cost_price'      => 2.50,
-                    'min_stock_alert' => 10,
-                    'current_stock'   => 0,
-                ],
-            ];
-
-            foreach ($medications as $m) {
-                self::createMedication($m);
+        try {
+            $isSeeded = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'inventory_seeded'")->fetchColumn();
+            if ($isSeeded === '1') {
+                return; // Already acknowledged. Never reseed if user deleted records!
             }
+            $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES ('inventory_seeded', '1') ON DUPLICATE KEY UPDATE setting_value = '1'")->execute();
+        } catch (Exception $e) {
+            // Table might not exist in early migration
+        }
+    }
+
+    /**
+     * Logs an explicit selling price change for audit purposes.
+     *
+     * @param int $medicationId
+     * @param float $oldPrice
+     * @param float $newPrice
+     * @param int|null $changedBy
+     * @param string|null $reason
+     * @return int Inserted log ID
+     */
+    public static function logSellingPriceChange(
+        int $medicationId,
+        float $oldPrice,
+        float $newPrice,
+        ?int $changedBy,
+        ?string $reason = null
+    ): int {
+        $pdo = getDBConnection();
+        $stmt = $pdo->prepare("
+            INSERT INTO medication_price_logs (medication_id, old_price, new_price, changed_by, reason)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([
+            $medicationId,
+            $oldPrice,
+            $newPrice,
+            $changedBy,
+            $reason ?: 'Manual price update',
+        ]);
+        return (int)$pdo->lastInsertId();
+    }
+
+    /**
+     * Retrieves the selling price change audit trail for a medication.
+     *
+     * @param int|null $medicationId
+     * @param int $limit
+     * @return array
+     */
+    public static function getPriceChangeLogs(?int $medicationId = null, int $limit = 50): array
+    {
+        $pdo = getDBConnection();
+        $where = $medicationId ? "WHERE mpl.medication_id = :mid" : "";
+        $sql = "
+            SELECT 
+                mpl.*,
+                m.name as medication_name,
+                m.med_code,
+                u.full_name as changed_by_name
+            FROM medication_price_logs mpl
+            JOIN medications m ON mpl.medication_id = m.id
+            LEFT JOIN users u ON mpl.changed_by = u.id
+            {$where}
+            ORDER BY mpl.created_at DESC
+            LIMIT {$limit}
+        ";
+        $stmt = $pdo->prepare($sql);
+        if ($medicationId) {
+            $stmt->execute([':mid' => $medicationId]);
+        } else {
+            $stmt->execute();
+        }
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Updates the medicine-level selling price (unit_price) independently from catalog
+     * with mandatory audit logging.
+     *
+     * @param int $medicationId
+     * @param float $newPrice
+     * @param int|null $changedBy
+     * @param string|null $reason
+     * @return bool
+     */
+    public static function updateMedicationSellingPrice(
+        int $medicationId,
+        float $newPrice,
+        ?int $changedBy,
+        ?string $reason = null
+    ): bool {
+        if ($newPrice <= 0) {
+            throw new InvalidArgumentException('Selling price must be greater than zero.');
+        }
+
+        $pdo = getDBConnection();
+        $pdo->beginTransaction();
+
+        try {
+            $stmt = $pdo->prepare("SELECT unit_price FROM medications WHERE id = ? FOR UPDATE");
+            $stmt->execute([$medicationId]);
+            $current = $stmt->fetchColumn();
+
+            if ($current === false) {
+                throw new InvalidArgumentException("Medication ID {$medicationId} not found.");
+            }
+
+            $oldPrice = (float)$current;
+            if (abs($newPrice - $oldPrice) < 0.001) {
+                $pdo->rollBack();
+                return true;
+            }
+
+            $stmtUpdate = $pdo->prepare("UPDATE medications SET unit_price = ? WHERE id = ?");
+            $stmtUpdate->execute([$newPrice, $medicationId]);
+
+            self::logSellingPriceChange(
+                $medicationId,
+                $oldPrice,
+                $newPrice,
+                $changedBy,
+                $reason ?: 'Direct catalog price update'
+            );
+
+            $pdo->commit();
+            return true;
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            throw $e;
         }
     }
 }

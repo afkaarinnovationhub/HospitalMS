@@ -13,7 +13,8 @@ require_once __DIR__ . '/PatientOperation.php';
 class LaboratoryOperation
 {
     /**
-     * Seeds initial standard laboratory diagnostic categories if empty.
+     * Ensures laboratory diagnostic categories table exists.
+     * Strictly production mode: Does NOT seed any mock categories.
      */
     public static function seedLabCategoriesIfEmpty(): void
     {
@@ -28,27 +29,6 @@ class LaboratoryOperation
                 INDEX `idx_lab_cat_name` (`name`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         ");
-
-        $count = (int)$pdo->query("SELECT COUNT(*) FROM lab_categories")->fetchColumn();
-        if ($count > 0) {
-            return;
-        }
-
-        $defaultCategories = [
-            ['name' => 'Hematology & Coagulation', 'description' => 'Blood cell counts, clotting tests, and hemoglobin analysis.'],
-            ['name' => 'Clinical Chemistry & Biochemistry', 'description' => 'Electrolytes, liver/kidney function, lipid profiles, and enzymes.'],
-            ['name' => 'Parasitology & Infectious Diseases', 'description' => 'Malaria microscopy, stool parasites, and infectious pathogens.'],
-            ['name' => 'Serology & Immunology', 'description' => 'Antibody/antigen screening, viral tests (HIV, Hepatitis), and typhoid.'],
-            ['name' => 'Urinalysis & Clinical Microscopy', 'description' => 'Urine chemical dipstick, microscopic sediment, and pregnancy tests.'],
-            ['name' => 'Microbiology & Cultures', 'description' => 'Bacterial/fungal culture, Gram stain, and antibiotic sensitivity.'],
-            ['name' => 'Pathology & Histology', 'description' => 'Tissue biopsy and cellular cytology investigations.'],
-            ['name' => 'General Diagnostic Laboratory', 'description' => 'Standard routine point-of-care lab tests.'],
-        ];
-
-        $stmt = $pdo->prepare("INSERT IGNORE INTO lab_categories (name, description) VALUES (?, ?)");
-        foreach ($defaultCategories as $cat) {
-            $stmt->execute([$cat['name'], $cat['description']]);
-        }
     }
 
     /**
@@ -94,49 +74,13 @@ class LaboratoryOperation
     }
 
     /**
-     * Seeds the standard master catalog of diagnostic laboratory tests if empty.
-     * Only seeds 1 clean reference test so the user can easily register their own tests.
+     * Ensures laboratory test catalog table exists.
+     * Strictly production mode: Does NOT seed any mock tests.
      */
     public static function seedLabCatalogIfEmpty(): void
     {
-        $pdo = getDBConnection();
         self::seedLabCategoriesIfEmpty();
-
-        // Check if catalog has already been seeded once
-        try {
-            $stmtSet = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'lab_catalog_seeded'");
-            $stmtSet->execute();
-            $seeded = $stmtSet->fetchColumn();
-            if ($seeded === '1') {
-                return; // User has full manual control over tests. Do NOT auto-resurrect deleted tests!
-            }
-        } catch (Exception $e) {
-            // Ignore if system_settings table not yet ready
-        }
-
-        $count = (int)$pdo->query("SELECT COUNT(*) FROM lab_tests_catalog")->fetchColumn();
-        if ($count > 0) {
-            try {
-                $pdo->exec("INSERT INTO system_settings (setting_key, setting_value) VALUES ('lab_catalog_seeded', '1') ON DUPLICATE KEY UPDATE setting_value = '1'");
-            } catch (Exception $e) {}
-            return;
-        }
-
-        $stmt = $pdo->prepare("
-            INSERT INTO lab_tests_catalog (test_code, test_name, category, price, turnaround_minutes, specimen_type, normal_range, is_active)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-        ");
-
-        $stmt->execute([
-            'LAB-CBC',
-            'Complete Blood Count (CBC / FBC)',
-            'Hematology & Coagulation',
-            10.00,
-            25,
-            'Whole Blood (EDTA)',
-            'WBC: 4.0-11.0 x10^9/L, Hb: 12.0-17.5 g/dL, PLT: 150-450 x10^9/L',
-        ]);
-
+        $pdo = getDBConnection();
         try {
             $pdo->exec("INSERT INTO system_settings (setting_key, setting_value) VALUES ('lab_catalog_seeded', '1') ON DUPLICATE KEY UPDATE setting_value = '1'");
         } catch (Exception $e) {}

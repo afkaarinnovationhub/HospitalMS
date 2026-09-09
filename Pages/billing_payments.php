@@ -410,7 +410,7 @@ include __DIR__ . '/../components/header.php';
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Amount to Pay ($ USD) *</label>
-                                    <input name="paid_amount" id="checkout-amount-input" type="number" step="0.01" min="0.01" max="<?php echo (float)$activeInvoice['due_amount']; ?>" value="<?php echo (float)$activeInvoice['due_amount']; ?>" required class="w-full bg-surface border border-outline-variant rounded-lg p-2 text-sm font-mono font-bold text-on-surface focus:border-primary outline-none">
+                                    <input name="paid_amount" id="checkout-amount-input" type="number" step="0.01" min="0.00" max="<?php echo (float)$activeInvoice['due_amount']; ?>" value="<?php echo (float)$activeInvoice['due_amount']; ?>" required class="w-full bg-surface border border-outline-variant rounded-lg p-2 text-sm font-mono font-bold text-on-surface focus:border-primary outline-none">
                                 </div>
                                 <div>
                                     <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Payment Method *</label>
@@ -418,6 +418,7 @@ include __DIR__ . '/../components/header.php';
                                         <option value="cash">1010 - Cash on Hand (Khasnadda)</option>
                                         <option value="mobile">1020 - Mobile Money (Zaad / EVC Plus)</option>
                                         <option value="bank">1030 - Bank Account (Commercial Banks)</option>
+                                        <option value="credit">1100 - Patient Credit / Accounts Receivable</option>
                                     </select>
                                 </div>
                             </div>

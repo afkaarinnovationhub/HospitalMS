@@ -35,8 +35,8 @@ class BillingController
             $paymentMethod = sanitizeString($post['payment_method'] ?? 'cash');
             $notes         = sanitizeString($post['notes'] ?? '');
 
-            if ($invoiceId <= 0 || $paidAmount <= 0) {
-                return ['error' => 'Please provide a valid invoice and a positive payment amount.'];
+            if ($invoiceId <= 0 || $paidAmount < 0) {
+                return ['error' => 'Please provide a valid invoice and a non-negative payment amount.'];
             }
 
             $result = BillingOperation::processInvoicePayment(

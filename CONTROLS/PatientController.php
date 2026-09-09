@@ -413,6 +413,9 @@ class PatientController
             }
 
             $currentUser = getCurrentUser();
+            if (($currentUser['role'] ?? '') === ROLE_DOCTOR) {
+                return ['error' => 'Clinicians cannot edit or reassign queue items. Please contact reception or management.'];
+            }
             $userId      = (int)($currentUser['id'] ?? 1);
             $newDoctorId = !empty($post['doctor_id']) ? (int)$post['doctor_id'] : null;
             $department  = sanitizeString($post['department'] ?? 'General OPD');
@@ -592,6 +595,11 @@ class PatientController
                 return ['error' => 'Invalid queue item specified.'];
             }
 
+            $currentUser = getCurrentUser();
+            if (($currentUser['role'] ?? '') === ROLE_DOCTOR) {
+                return ['error' => 'Clinicians cannot remove patients from the queue.'];
+            }
+
             PatientOperation::deleteQueueItem($queueId);
 
             setFlashMessage('success', 'Patient removed from queue successfully.');
@@ -624,19 +632,89 @@ class PatientController
             $queueId = (int)($post['queue_id'] ?? 0);
             $status  = sanitizeString($post['status'] ?? '');
 
-            if ($queueId <= 0 || !in_array($status, ['waiting', 'in_consultation', 'completed', 'cancelled'], true)) {
+            if ($queueId <= 0 || !in_array($status, ['waiting', 'in_consultation', 'on_hold', 'completed', 'cancelled'], true)) {
                 return ['error' => 'Invalid queue item or status specified.'];
+            }
+
+            $currentUser = getCurrentUser();
+            if (($currentUser['role'] ?? '') === ROLE_DOCTOR) {
+                $pdo = getDBConnection();
+                $stmtCheck = $pdo->prepare("SELECT doctor_id FROM patient_queues WHERE id = ?");
+                $stmtCheck->execute([$queueId]);
+                $assignedDoc = $stmtCheck->fetchColumn();
+                if ($assignedDoc !== false && $assignedDoc !== null && (int)$assignedDoc !== (int)$currentUser['id']) {
+                    return ['error' => 'You can only update status for patients in your consultation queue.'];
+                }
             }
 
             PatientOperation::updateQueueStatus($queueId, $status);
 
             setFlashMessage('success', sprintf('Patient queue status updated to "%s".', ucfirst(str_replace('_', ' ', $status))));
             $redirectUrl = !empty($post['redirect']) ? $post['redirect'] : 'queue_management.php';
-            safeRedirect($redirectUrl);
-            return null;
+            if (!defined('HPMS_TESTING')) {
+                safeRedirect($redirectUrl);
+            }
+            return ['queue_id' => $queueId, 'status' => $status];
 
         } catch (Exception $e) {
             error_log('[HPMS UPDATE QUEUE STATUS ERROR] ' . $e->getMessage());
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Handles doctor calling a patient from the queue into consultation.
+     * Moves any previous unfinished consultation for this doctor to 'on_hold' and redirects directly to chart.
+     *
+     * @param array $post
+     * @return array|null
+     */
+    public static function handleCallPatient(array $post): ?array
+    {
+        initSecureSession();
+        requireLogin();
+
+        if (!verifyCsrfToken($post['csrf_token'] ?? null)) {
+            return ['error' => 'Security token invalid or expired.'];
+        }
+
+        try {
+            $queueId = (int)($post['queue_id'] ?? 0);
+            $doctorId = (int)($_SESSION['hpms_user_id'] ?? 0);
+
+            if ($queueId <= 0) {
+                return ['error' => 'Invalid queue item specified.'];
+            }
+
+            $currentUser = getCurrentUser();
+            if (($currentUser['role'] ?? '') === ROLE_DOCTOR) {
+                $pdo = getDBConnection();
+                $stmtCheck = $pdo->prepare("SELECT doctor_id FROM patient_queues WHERE id = ?");
+                $stmtCheck->execute([$queueId]);
+                $assignedDoc = $stmtCheck->fetchColumn();
+                if ($assignedDoc !== false && $assignedDoc !== null && (int)$assignedDoc !== (int)$currentUser['id']) {
+                    return ['error' => 'This patient is assigned to another clinician.'];
+                }
+            }
+
+            PatientOperation::callPatientForDoctor($queueId, $doctorId);
+
+            $pdo = getDBConnection();
+            $stmtP = $pdo->prepare("SELECT patient_id, token_number FROM patient_queues WHERE id = ?");
+            $stmtP->execute([$queueId]);
+            $qInfo = $stmtP->fetch();
+
+            $patientId = (int)($qInfo['patient_id'] ?? 0);
+            setFlashMessage('success', sprintf('Patient Token #%s called into consultation room.', $qInfo['token_number'] ?? ''));
+
+            $redirectUrl = "consultation_michael_chen.php?id={$patientId}&queue_id={$queueId}";
+            if (!defined('HPMS_TESTING')) {
+                safeRedirect($redirectUrl);
+            }
+            return ['patient_id' => $patientId, 'queue_id' => $queueId];
+
+        } catch (Exception $e) {
+            error_log('[HPMS CALL PATIENT ERROR] ' . $e->getMessage());
             return ['error' => $e->getMessage()];
         }
     }

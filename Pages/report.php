@@ -97,7 +97,9 @@ $labAnalytics = ReportOperation::getLaboratoryAnalyticsReport($fromDate, $toDate
 $pharmacyTopSales = ReportOperation::getPharmacySalesReport($fromDate, $toDate, 10);
 
 // 8. Inventory Valuation
-$inventorySummary = ReportOperation::getInventoryValuationSummary();
+$inventorySummary        = ReportOperation::getInventoryValuationSummary();
+$pharmacyInventoryReport = ($activeTab === 'pharmacy') ? ReportOperation::getPharmacyInventorySummaryReport() : [];
+$pharmacyBatchReport     = ($activeTab === 'pharmacy') ? ReportOperation::getPharmacyBatchDetailReport() : [];
 
 // 9. Revenue Streams & Payment Methods
 $revenueStreams = ReportOperation::getRevenueStreamsBreakdown($fromDate, $toDate);
@@ -765,6 +767,145 @@ include __DIR__ . '/../components/header.php';
                                             <td class="py-3 px-4 font-mono font-semibold">$<?php echo number_format((float)$med['total_gross_sales'], 2); ?></td>
                                             <td class="py-3 px-4 font-mono text-error">$<?php echo number_format((float)$med['total_cogs'], 2); ?></td>
                                             <td class="py-3 px-4 text-right font-mono font-bold text-secondary">+$<?php echo number_format((float)$med['gross_profit'], 2); ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Medication Stock & FIFO Valuation Summary Table -->
+                <div class="bg-surface border border-outline-variant rounded-2xl shadow-xs overflow-hidden">
+                    <div class="p-5 border-b border-outline-variant flex justify-between items-center bg-surface-bright">
+                        <div>
+                            <h3 class="font-headline-sm text-base font-bold text-on-surface flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary text-[22px]">inventory_2</span>
+                                Pharmacy Stock Valuation &amp; Weighted Cost Summary
+                            </h3>
+                            <p class="text-xs text-on-surface-variant">Live catalog valuation, weighted average acquisition cost, and active batch inventory asset breakdown.</p>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="border-b border-outline-variant text-on-surface-variant font-bold bg-surface-container-low">
+                                    <th class="py-3 px-4">Med Code</th>
+                                    <th class="py-3 px-4">Medication Name</th>
+                                    <th class="py-3 px-4">Category</th>
+                                    <th class="py-3 px-4 text-center">In Stock</th>
+                                    <th class="py-3 px-4 text-center">Active Batches</th>
+                                    <th class="py-3 px-4 text-right">Weighted Cost</th>
+                                    <th class="py-3 px-4 text-right">Retail Price</th>
+                                    <th class="py-3 px-4 text-right">Asset Valuation</th>
+                                    <th class="py-3 px-4">Nearest Expiry</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-outline-variant/60">
+                                <?php if (empty($pharmacyInventoryReport)): ?>
+                                    <tr>
+                                        <td colspan="9" class="py-8 text-center text-on-surface-variant">
+                                            No medication catalog records found.
+                                        </td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($pharmacyInventoryReport as $m): ?>
+                                        <tr class="hover:bg-surface-container-low transition-colors">
+                                            <td class="py-3 px-4 font-mono font-bold text-primary"><?php echo e($m['med_code']); ?></td>
+                                            <td class="py-3 px-4 font-bold text-on-surface">
+                                                <?php echo e($m['name']); ?>
+                                                <span class="block text-[11px] font-normal text-on-surface-variant"><?php echo e($m['dosage_form'] ?: 'Unit'); ?></span>
+                                            </td>
+                                            <td class="py-3 px-4 text-on-surface-variant"><?php echo e($m['category']); ?></td>
+                                            <td class="py-3 px-4 text-center font-bold font-mono <?php echo ((int)$m['current_stock'] <= 0) ? 'text-error' : 'text-on-surface'; ?>">
+                                                <?php echo number_format((int)$m['current_stock']); ?>
+                                            </td>
+                                            <td class="py-3 px-4 text-center">
+                                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-surface-container-high text-on-surface">
+                                                    <?php echo (int)$m['active_batch_count']; ?> Batches
+                                                </span>
+                                            </td>
+                                            <td class="py-3 px-4 text-right font-mono text-on-surface-variant">$<?php echo number_format((float)$m['weighted_avg_cost'], 2); ?></td>
+                                            <td class="py-3 px-4 text-right font-mono font-semibold text-on-surface">$<?php echo number_format((float)$m['selling_price'], 2); ?></td>
+                                            <td class="py-3 px-4 text-right font-mono font-bold text-primary">$<?php echo number_format((float)$m['total_inventory_value'], 2); ?></td>
+                                            <td class="py-3 px-4 text-on-surface-variant">
+                                                <?php echo !empty($m['nearest_expiry']) ? date('M d, Y', strtotime($m['nearest_expiry'])) : '<span class="text-outline">No Active Batch</span>'; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Granular Active Batches & Expiry Ledger Table -->
+                <div class="bg-surface border border-outline-variant rounded-2xl shadow-xs overflow-hidden">
+                    <div class="p-5 border-b border-outline-variant flex justify-between items-center bg-surface-bright">
+                        <div>
+                            <h3 class="font-headline-sm text-base font-bold text-on-surface flex items-center gap-2">
+                                <span class="material-symbols-outlined text-secondary text-[22px]">layers</span>
+                                FIFO Active Batches &amp; Expiry Schedule (Option A Sequence)
+                            </h3>
+                            <p class="text-xs text-on-surface-variant">Granular lot tracking showing exact FIFO drawing order sorted by earliest expiration date first.</p>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="border-b border-outline-variant text-on-surface-variant font-bold bg-surface-container-low">
+                                    <th class="py-3 px-4">Batch #</th>
+                                    <th class="py-3 px-4">Medication Name</th>
+                                    <th class="py-3 px-4">Supplier</th>
+                                    <th class="py-3 px-4">Received Date</th>
+                                    <th class="py-3 px-4">Expiry Date</th>
+                                    <th class="py-3 px-4">Countdown</th>
+                                    <th class="py-3 px-4 text-center">Remaining / Recv</th>
+                                    <th class="py-3 px-4 text-right">Unit Cost</th>
+                                    <th class="py-3 px-4 text-right">Batch Value</th>
+                                    <th class="py-3 px-4 text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-outline-variant/60">
+                                <?php if (empty($pharmacyBatchReport)): ?>
+                                    <tr>
+                                        <td colspan="10" class="py-8 text-center text-on-surface-variant">
+                                            No active medicine batches found.
+                                        </td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($pharmacyBatchReport as $b): 
+                                        $days = (int)($b['days_to_expiry'] ?? 0);
+                                        if ($days < 0) {
+                                            $countdownBadge = '<span class="px-2 py-0.5 bg-error text-on-error rounded-full text-[10px] font-bold">Expired</span>';
+                                        } elseif ($days <= 30) {
+                                            $countdownBadge = '<span class="px-2 py-0.5 bg-amber-500/20 text-amber-700 border border-amber-300 dark:border-amber-700 rounded-full text-[10px] font-bold">' . $days . ' days left</span>';
+                                        } elseif ($days <= 90) {
+                                            $countdownBadge = '<span class="px-2 py-0.5 bg-secondary-fixed/40 text-on-secondary-fixed-variant rounded-full text-[10px] font-semibold">' . $days . ' days left</span>';
+                                        } else {
+                                            $countdownBadge = '<span class="text-on-surface-variant">' . $days . ' days</span>';
+                                        }
+                                    ?>
+                                        <tr class="hover:bg-surface-container-low transition-colors">
+                                            <td class="py-3 px-4 font-mono font-bold text-primary"><?php echo e($b['batch_number']); ?></td>
+                                            <td class="py-3 px-4 font-bold text-on-surface">
+                                                <?php echo e($b['medication_name']); ?>
+                                                <span class="block text-[11px] font-normal text-on-surface-variant"><?php echo e($b['med_code']); ?></span>
+                                            </td>
+                                            <td class="py-3 px-4 text-on-surface-variant"><?php echo e($b['supplier_name'] ?? 'Direct Restock'); ?></td>
+                                            <td class="py-3 px-4 font-mono text-[11px]"><?php echo date('Y-m-d', strtotime($b['received_date'])); ?></td>
+                                            <td class="py-3 px-4 font-medium"><?php echo date('M d, Y', strtotime($b['expiry_date'])); ?></td>
+                                            <td class="py-3 px-4"><?php echo $countdownBadge; ?></td>
+                                            <td class="py-3 px-4 text-center font-mono font-semibold">
+                                                <?php echo (int)$b['quantity_remaining']; ?> / <?php echo (int)$b['quantity_received']; ?>
+                                            </td>
+                                            <td class="py-3 px-4 text-right font-mono text-on-surface-variant">$<?php echo number_format((float)$b['unit_cost'], 2); ?></td>
+                                            <td class="py-3 px-4 text-right font-mono font-bold text-secondary">$<?php echo number_format((float)$b['batch_value'], 2); ?></td>
+                                            <td class="py-3 px-4 text-center">
+                                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold <?php echo ($b['status'] === 'active') ? 'bg-secondary-fixed text-on-secondary-fixed-variant' : 'bg-surface-container-high text-on-surface-variant'; ?>">
+                                                    <?php echo ucfirst(e($b['status'])); ?>
+                                                </span>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php endif; ?>

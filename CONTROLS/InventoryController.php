@@ -89,19 +89,22 @@ class InventoryController
                 return ['error' => 'Please select a disbursement account (Cash, Mobile Money, or Bank) for the upfront payment.'];
             }
 
+            $confirmPriceUpdate = !empty($post['confirm_price_update']) && ($post['confirm_price_update'] === '1' || $post['confirm_price_update'] === true || $post['confirm_price_update'] === 1);
+
             $purchaseId = InventoryOperation::recordPurchaseOrder([
-                'medication_id'  => $medicationId,
-                'supplier_id'    => $supplierId,
-                'quantity'       => $quantity,
-                'cost_price'     => $costPrice,
-                'unit_price'     => $unitPrice,
-                'discount'       => $discount,
-                'paid_amount'    => $paidAmount,
-                'payment_method' => $paymentMethod ?: 'cash',
-                'batch_number'   => $batchNumber,
-                'expiry_date'    => $expiryDate,
-                'notes'          => $notes,
-                'created_by'     => $userId,
+                'medication_id'        => $medicationId,
+                'supplier_id'          => $supplierId,
+                'quantity'             => $quantity,
+                'cost_price'           => $costPrice,
+                'unit_price'           => $unitPrice,
+                'confirm_price_update' => $confirmPriceUpdate,
+                'discount'             => $discount,
+                'paid_amount'          => $paidAmount,
+                'payment_method'       => $paymentMethod ?: 'cash',
+                'batch_number'         => $batchNumber,
+                'expiry_date'          => $expiryDate,
+                'notes'                => $notes,
+                'created_by'           => $userId,
             ]);
 
             setFlashMessage('success', "Stock added successfully! ({$quantity} units received and added to inventory).");
@@ -305,6 +308,57 @@ class InventoryController
 
         } catch (Exception $e) {
             error_log('[HPMS DELETE SUPPLIER ERROR] ' . $e->getMessage());
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Handles independent selling price update from medication catalog.
+     *
+     * @param array $post
+     * @return array|null
+     */
+    public static function handleUpdateSellingPrice(array $post): ?array
+    {
+        initSecureSession();
+        requireLogin();
+
+        if (!verifyCsrfToken($post['csrf_token'] ?? null)) {
+            return ['error' => 'Security token invalid or expired.'];
+        }
+
+        $currentUser = getCurrentUser();
+        $userId = (int)($currentUser['id'] ?? 1);
+
+        try {
+            $medicationId = (int)($post['medication_id'] ?? 0);
+            $newPrice     = (float)($post['unit_price'] ?? 0);
+            $reason       = sanitizeString($post['reason'] ?? 'Manual catalog price adjustment');
+
+            if ($medicationId <= 0) {
+                return ['error' => 'Invalid medication selected.'];
+            }
+
+            if ($newPrice <= 0) {
+                return ['error' => 'Selling price must be greater than zero.'];
+            }
+
+            InventoryOperation::updateMedicationSellingPrice(
+                $medicationId,
+                $newPrice,
+                $userId,
+                $reason
+            );
+
+            setFlashMessage('success', sprintf('Medication selling price successfully updated to $%.2f.', $newPrice));
+            $redirectUrl = !empty($post['redirect']) ? $post['redirect'] : 'inventory_management.php?view=summary';
+            if (!defined('HPMS_TESTING')) {
+                safeRedirect($redirectUrl);
+            }
+            return ['success' => true];
+
+        } catch (Exception $e) {
+            error_log('[HPMS UPDATE PRICE ERROR] ' . $e->getMessage());
             return ['error' => $e->getMessage()];
         }
     }

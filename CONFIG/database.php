@@ -170,17 +170,40 @@ function initializeDatabaseTables(PDO $pdo): void
             `medication_id` INT UNSIGNED NOT NULL,
             `supplier_id` INT UNSIGNED NULL,
             `purchase_id` INT UNSIGNED NULL,
+            `purchase_transaction_id` INT UNSIGNED NULL,
             `batch_number` VARCHAR(80) NOT NULL,
             `quantity_received` INT UNSIGNED NOT NULL,
             `quantity_remaining` INT UNSIGNED NOT NULL,
+            `unit_cost` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
             `cost_price` DECIMAL(10,2) NOT NULL,
             `expiry_date` DATE NOT NULL,
             `received_date` DATE NOT NULL,
+            `status` ENUM('active', 'depleted', 'expired', 'written_off') NOT NULL DEFAULT 'active',
             `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (`medication_id`) REFERENCES `medications`(`id`) ON DELETE CASCADE,
             FOREIGN KEY (`supplier_id`) REFERENCES `suppliers`(`id`) ON DELETE SET NULL,
             FOREIGN KEY (`purchase_id`) REFERENCES `purchases`(`id`) ON DELETE SET NULL,
-            INDEX `idx_batch_expiry` (`expiry_date`)
+            FOREIGN KEY (`purchase_transaction_id`) REFERENCES `journal_entries`(`id`) ON DELETE SET NULL,
+            INDEX `idx_batch_expiry` (`expiry_date`),
+            INDEX `idx_batch_fifo_lookup` (`medication_id`, `status`, `expiry_date`, `received_date`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+        -- 5b. Medicine Batch Movements (Audit trail)
+        CREATE TABLE IF NOT EXISTS `medicine_batch_movements` (
+            `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            `batch_id` INT UNSIGNED NOT NULL,
+            `movement_type` ENUM('dispense', 'purchase', 'adjustment', 'write_off') NOT NULL,
+            `quantity` INT NOT NULL,
+            `unit_cost` DECIMAL(10,2) NOT NULL,
+            `total_cost` DECIMAL(10,2) NOT NULL,
+            `reference_transaction_id` VARCHAR(100) NULL,
+            `notes` VARCHAR(255) NULL,
+            `created_by` INT UNSIGNED NULL,
+            `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (`batch_id`) REFERENCES `medicine_batches`(`id`) ON DELETE CASCADE,
+            FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+            INDEX `idx_batch_movements_batch` (`batch_id`),
+            INDEX `idx_batch_movements_ref` (`reference_transaction_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
         -- 6. Supplier Payments
@@ -329,7 +352,7 @@ function initializeDatabaseTables(PDO $pdo): void
             `doctor_id` INT UNSIGNED NULL,
             `department` VARCHAR(100) NOT NULL DEFAULT 'General OPD',
             `priority` ENUM('normal', 'urgent', 'emergency') NOT NULL DEFAULT 'normal',
-            `status` ENUM('waiting', 'in_consultation', 'in_lab', 'lab_completed', 'completed', 'cancelled') NOT NULL DEFAULT 'waiting',
+            `status` ENUM('waiting', 'in_consultation', 'on_hold', 'in_lab', 'lab_completed', 'completed', 'cancelled') NOT NULL DEFAULT 'waiting',
             `queued_by` INT UNSIGNED NULL,
             `queued_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
             `called_at` DATETIME NULL,
@@ -560,6 +583,9 @@ function initializeDatabaseTables(PDO $pdo): void
             $pdo->exec("ALTER TABLE `patients` ADD COLUMN `account_credit` DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER `address`");
         }
 
+        // Safe migration for patient_queues status to include on_hold
+        $pdo->exec("ALTER TABLE `patient_queues` MODIFY COLUMN `status` ENUM('waiting', 'in_consultation', 'on_hold', 'in_lab', 'lab_completed', 'completed', 'cancelled') NOT NULL DEFAULT 'waiting'");
+
         // 24. Refund Vouchers
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS `refund_vouchers` (
@@ -578,6 +604,23 @@ function initializeDatabaseTables(PDO $pdo): void
                 FOREIGN KEY (`issued_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
                 INDEX `idx_rv_patient` (`patient_id`),
                 INDEX `idx_rv_voucher` (`voucher_number`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ");
+
+        // 25. Medication Price Audit Logs
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS `medication_price_logs` (
+                `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `medication_id` INT UNSIGNED NOT NULL,
+                `old_price` DECIMAL(10,2) NOT NULL,
+                `new_price` DECIMAL(10,2) NOT NULL,
+                `changed_by` INT UNSIGNED NULL,
+                `reason` VARCHAR(255) NULL,
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                KEY `idx_mpl_med` (`medication_id`),
+                KEY `idx_mpl_user` (`changed_by`),
+                CONSTRAINT `fk_mpl_med` FOREIGN KEY (`medication_id`) REFERENCES `medications` (`id`) ON DELETE CASCADE,
+                CONSTRAINT `fk_mpl_user` FOREIGN KEY (`changed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         ");
     } catch (PDOException $e) {

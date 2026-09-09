@@ -208,7 +208,7 @@ include __DIR__ . '/../components/header.php';
                         <button type="button" onclick="clearPatientSelection()" class="px-3 py-1 rounded-lg border border-outline-variant text-xs font-semibold bg-surface hover:bg-surface-container cursor-pointer">
                             Cancel Selection
                         </button>
-                        <button type="submit" onclick="return confirm('Are you sure you want to permanently delete all selected patients?');" class="px-3.5 py-1 bg-error hover:bg-error/90 text-on-error rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer shadow-xs">
+                        <button type="button" onclick="openBulkDeleteModal()" class="px-3.5 py-1 bg-error hover:bg-error/90 text-on-error rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer shadow-xs">
                             <span class="material-symbols-outlined text-[16px]">delete_sweep</span>
                             Delete Selected
                         </button>
@@ -417,7 +417,73 @@ include __DIR__ . '/../components/header.php';
     </div>
 </div>
 
+<!-- DELETE PATIENT MODAL -->
+<div id="delete-patient-modal" class="fixed inset-0 z-50 bg-black/60 hidden backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-surface rounded-2xl border border-outline-variant max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div class="flex items-center gap-3 text-error">
+            <div class="w-12 h-12 rounded-xl bg-error-container/60 border border-error/30 flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-[28px] text-error">delete_forever</span>
+            </div>
+            <div>
+                <h3 class="font-bold text-base text-on-surface">Delete Patient Record</h3>
+                <p class="text-xs text-on-surface-variant">Ma hubtaa inaad tirtirto bukaankan?</p>
+            </div>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-surface-container border border-outline-variant text-xs text-on-surface space-y-1.5">
+            <p><strong class="text-on-surface">Bukaanka:</strong> <span id="del_patient_name" class="font-bold text-error"></span></p>
+            <p class="text-on-surface-variant leading-relaxed">
+                Tallaabadan dib looma noqon karo. Xogta bukaankan iyo taariikhda la xiriirta si joogto ah ayaa looga saarayaa nidaamka.
+            </p>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t border-outline-variant">
+            <button type="button" onclick="closeDeletePatientModal()" class="px-3.5 py-2 rounded-xl border border-outline-variant text-xs font-semibold text-on-surface hover:bg-surface-container-low cursor-pointer">
+                Ka Noqo (Cancel)
+            </button>
+            <button type="button" onclick="executeSingleDelete()" class="px-4 py-2 rounded-xl bg-error hover:bg-error/90 text-on-error text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[16px]">delete</span>
+                Haa, Tirtir (Delete)
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- BULK DELETE PATIENTS MODAL -->
+<div id="bulk-delete-modal" class="fixed inset-0 z-50 bg-black/60 hidden backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-surface rounded-2xl border border-outline-variant max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div class="flex items-center gap-3 text-error">
+            <div class="w-12 h-12 rounded-xl bg-error-container/60 border border-error/30 flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-[28px] text-error">delete_sweep</span>
+            </div>
+            <div>
+                <h3 class="font-bold text-base text-on-surface">Delete Selected Patients</h3>
+                <p class="text-xs text-on-surface-variant">Tirtirka bukaanada la calaamadiyay</p>
+            </div>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-surface-container border border-outline-variant text-xs text-on-surface space-y-1.5">
+            <p><strong class="text-on-surface">Bukaanada:</strong> <span id="bulk_modal_count" class="font-bold text-error"></span></p>
+            <p class="text-on-surface-variant leading-relaxed">
+                Ma hubtaa inaad si rasmi ah u tirtirto dhammaan bukaanada aad dooratay? Xogtooda dib dambe looma soo celin karo.
+            </p>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t border-outline-variant">
+            <button type="button" onclick="closeBulkDeleteModal()" class="px-3.5 py-2 rounded-xl border border-outline-variant text-xs font-semibold text-on-surface hover:bg-surface-container-low cursor-pointer">
+                Ka Noqo (Cancel)
+            </button>
+            <button type="button" onclick="executeBulkDelete()" class="px-4 py-2 rounded-xl bg-error hover:bg-error/90 text-on-error text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[16px]">delete_sweep</span>
+                Haa, Tirtir Dhammaan
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
+    let targetDeletePatientId = null;
+
     function openEditPatientModal(p) {
         document.getElementById('edit_pat_id').value = p.id;
         document.getElementById('edit_pat_first_name').value = p.first_name || '';
@@ -436,11 +502,38 @@ include __DIR__ . '/../components/header.php';
     function closeEditPatientModal() {
         document.getElementById('edit-patient-modal').classList.add('hidden');
     }
+
     function confirmSingleDelete(patId, patName) {
-        if (confirm(`Are you sure you want to permanently delete patient "${patName}"?`)) {
-            document.getElementById('single_delete_patient_id').value = patId;
+        targetDeletePatientId = patId;
+        document.getElementById('del_patient_name').textContent = patName || 'Bukaanka';
+        document.getElementById('delete-patient-modal').classList.remove('hidden');
+    }
+
+    function closeDeletePatientModal() {
+        targetDeletePatientId = null;
+        document.getElementById('delete-patient-modal').classList.add('hidden');
+    }
+
+    function executeSingleDelete() {
+        if (targetDeletePatientId) {
+            document.getElementById('single_delete_patient_id').value = targetDeletePatientId;
             document.getElementById('single-delete-form').submit();
         }
+    }
+
+    function openBulkDeleteModal() {
+        const checked = document.querySelectorAll('.patient-checkbox:checked');
+        if (checked.length === 0) return;
+        document.getElementById('bulk_modal_count').textContent = `${checked.length} bukaan ayaa la doortay`;
+        document.getElementById('bulk-delete-modal').classList.remove('hidden');
+    }
+
+    function closeBulkDeleteModal() {
+        document.getElementById('bulk-delete-modal').classList.add('hidden');
+    }
+
+    function executeBulkDelete() {
+        document.getElementById('bulk-patients-form').submit();
     }
     function toggleSelectAllPatients(master) {
         const checkboxes = document.querySelectorAll('.patient-checkbox');
