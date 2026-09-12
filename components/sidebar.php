@@ -123,6 +123,18 @@ $navItems = [
         'icon'  => 'assessment',
         'url'   => 'report.php',
     ],
+    [
+        'id'    => 'patient_debts',
+        'label' => 'Patient Debts',
+        'icon'  => 'request_quote',
+        'url'   => 'patient_debts.php',
+    ],
+    [
+        'id'    => 'hospital_debts',
+        'label' => 'Hospital Debts',
+        'icon'  => 'credit_card',
+        'url'   => 'hospital_debts.php',
+    ],
 ];
 
 $userRole = $currentUser['role'] ?? 'superadmin_ict';

@@ -1612,4 +1612,296 @@ class AccountingOperation
             'total_assets'      => $bs['assets']['total_assets'],
         ];
     }
+
+    /**
+     * Retrieves aggregated summary metrics specifically for the Patient Debts ledger.
+     *
+     * @return array
+     */
+    public static function getPatientDebtsSummaryMetrics(): array
+    {
+        $pdo = getDBConnection();
+
+        $stmt = $pdo->query("
+            SELECT 
+                COUNT(*) as total_unpaid_invoices,
+                COUNT(DISTINCT CASE WHEN patient_id > 0 THEN patient_id ELSE NULL END) as registered_debtors_count,
+                COUNT(DISTINCT CASE WHEN (patient_id IS NULL OR patient_id = 0) THEN id ELSE NULL END) as walkin_debtors_count,
+                COALESCE(SUM(due_amount), 0.00) as total_debt_due,
+                COALESCE(SUM(net_total), 0.00) as total_invoiced,
+                COALESCE(SUM(paid_amount), 0.00) as total_paid,
+                COALESCE(MAX(due_amount), 0.00) as max_single_debt
+            FROM invoices
+            WHERE due_amount > 0.005
+        ");
+        $res = $stmt->fetch();
+
+        $debtorCount = (int)($res['registered_debtors_count'] ?? 0) + (int)($res['walkin_debtors_count'] ?? 0);
+
+        return [
+            'total_debt_due'     => (float)($res['total_debt_due'] ?? 0.00),
+            'debtor_count'       => $debtorCount,
+            'total_invoiced'     => (float)($res['total_invoiced'] ?? 0.00),
+            'total_collected'    => (float)($res['total_paid'] ?? 0.00),
+            'max_single_debt'    => (float)($res['max_single_debt'] ?? 0.00),
+            'unpaid_invoices_cnt'=> (int)($res['total_unpaid_invoices'] ?? 0),
+        ];
+    }
+
+    /**
+     * Retrieves the patient debt ledger records with financial totals.
+     *
+     * @param string $filter 'debtors_only'|'high_debt'|'all'
+     * @param string $search
+     * @return array
+     */
+    public static function getPatientDebtsLedger(string $filter = 'debtors_only', string $search = ''): array
+    {
+        $pdo = getDBConnection();
+        $search = trim($search);
+
+        // 1. Registered Patients
+        $wherePat = [];
+        $paramsPat = [];
+
+        if (!empty($search)) {
+            $wherePat[] = "(p.first_name LIKE :q1 OR p.last_name LIKE :q2 OR p.phone LIKE :q3 OR p.mrn LIKE :q4 OR CONCAT(p.first_name, ' ', p.last_name) LIKE :q5)";
+            $q = "%$search%";
+            $paramsPat[':q1'] = $q;
+            $paramsPat[':q2'] = $q;
+            $paramsPat[':q3'] = $q;
+            $paramsPat[':q4'] = $q;
+            $paramsPat[':q5'] = $q;
+        }
+
+        $having = "";
+        if ($filter === 'debtors_only') {
+            $having = "HAVING balance_due > 0.005";
+        } elseif ($filter === 'high_debt') {
+            $having = "HAVING balance_due >= 50.00";
+        }
+
+        $whereClause = !empty($wherePat) ? ('WHERE ' . implode(' AND ', $wherePat)) : '';
+
+        $sqlPatients = "
+            SELECT 
+                p.id as patient_id,
+                NULL as invoice_id,
+                CONCAT(p.first_name, ' ', p.last_name) as patient_name,
+                p.first_name,
+                p.last_name,
+                p.phone,
+                p.mrn,
+                p.gender,
+                'patient' as record_type,
+                COUNT(i.id) as total_invoices_count,
+                COALESCE(SUM(i.net_total), 0.00) as total_invoiced,
+                COALESCE(SUM(i.paid_amount), 0.00) as total_paid,
+                COALESCE(SUM(i.due_amount), 0.00) as balance_due,
+                MAX(i.created_at) as last_activity,
+                MAX(i.id) as latest_invoice_id
+            FROM patients p
+            JOIN invoices i ON p.id = i.patient_id
+            {$whereClause}
+            GROUP BY p.id, p.first_name, p.last_name, p.phone, p.mrn, p.gender
+            {$having}
+            ORDER BY balance_due DESC, last_activity DESC
+        ";
+
+        $stmtP = $pdo->prepare($sqlPatients);
+        $stmtP->execute($paramsPat);
+        $patientRows = $stmtP->fetchAll();
+
+        // 2. Walk-in invoices (if any)
+        $whereW = ["(i.patient_id IS NULL OR i.patient_id = 0)"];
+        $paramsW = [];
+
+        if ($filter === 'debtors_only') {
+            $whereW[] = "i.due_amount > 0.005";
+        } elseif ($filter === 'high_debt') {
+            $whereW[] = "i.due_amount >= 50.00";
+        }
+
+        if (!empty($search)) {
+            $whereW[] = "(i.customer_name LIKE :wq1 OR i.customer_phone LIKE :wq2 OR i.invoice_number LIKE :wq3 OR i.token_number LIKE :wq4)";
+            $wq = "%$search%";
+            $paramsW[':wq1'] = $wq;
+            $paramsW[':wq2'] = $wq;
+            $paramsW[':wq3'] = $wq;
+            $paramsW[':wq4'] = $wq;
+        }
+
+        $sqlWalkin = "
+            SELECT 
+                NULL as patient_id,
+                i.id as invoice_id,
+                COALESCE(NULLIF(i.customer_name, ''), 'Walk-in Debtor') as patient_name,
+                i.customer_name as first_name,
+                '' as last_name,
+                i.customer_phone as phone,
+                COALESCE(i.token_number, i.invoice_number) as mrn,
+                'other' as gender,
+                'walkin' as record_type,
+                1 as total_invoices_count,
+                i.net_total as total_invoiced,
+                i.paid_amount as total_paid,
+                i.due_amount as balance_due,
+                i.created_at as last_activity,
+                i.id as latest_invoice_id
+            FROM invoices i
+            WHERE " . implode(' AND ', $whereW) . "
+            ORDER BY i.due_amount DESC, i.created_at DESC
+        ";
+
+        $stmtW = $pdo->prepare($sqlWalkin);
+        $stmtW->execute($paramsW);
+        $walkinRows = $stmtW->fetchAll();
+
+        $merged = array_merge($patientRows, $walkinRows);
+
+        // Sort by balance_due DESC, last_activity DESC
+        usort($merged, function ($a, $b) {
+            $diff = (float)$b['balance_due'] <=> (float)$a['balance_due'];
+            if ($diff !== 0) return $diff;
+            return strtotime((string)$b['last_activity']) <=> strtotime((string)$a['last_activity']);
+        });
+
+        return $merged;
+    }
+
+    /**
+     * Retrieves aggregated summary metrics for Hospital Debts (Accounts Payable).
+     *
+     * @return array
+     */
+    public static function getHospitalDebtsSummaryMetrics(): array
+    {
+        $pdo = getDBConnection();
+
+        $stmt = $pdo->query("
+            SELECT 
+                COUNT(*) as total_unpaid_pos,
+                COUNT(DISTINCT supplier_id) as creditors_count,
+                COALESCE(SUM(due_amount), 0.00) as total_debt_due,
+                COALESCE(SUM(net_amount), 0.00) as total_purchased,
+                COALESCE(SUM(paid_amount), 0.00) as total_paid,
+                COALESCE(MAX(due_amount), 0.00) as max_single_debt
+            FROM purchases
+            WHERE due_amount > 0.005
+        ");
+        $res = $stmt->fetch();
+
+        $totalSuppliersCount = (int)$pdo->query("SELECT COUNT(*) FROM suppliers")->fetchColumn();
+
+        return [
+            'total_debt_due'     => (float)($res['total_debt_due'] ?? 0.00),
+            'creditors_count'    => (int)($res['creditors_count'] ?? 0),
+            'total_purchased'    => (float)($res['total_purchased'] ?? 0.00),
+            'total_paid'         => (float)($res['total_paid'] ?? 0.00),
+            'max_single_debt'    => (float)($res['max_single_debt'] ?? 0.00),
+            'unpaid_pos_count'   => (int)($res['total_unpaid_pos'] ?? 0),
+            'total_suppliers'    => $totalSuppliersCount,
+        ];
+    }
+
+    /**
+     * Retrieves supplier debt ledger records with financial totals.
+     *
+     * @param string $filter 'debtors_only'|'high_debt'|'all'
+     * @param string $search
+     * @return array
+     */
+    public static function getHospitalDebtsLedger(string $filter = 'debtors_only', string $search = ''): array
+    {
+        $pdo = getDBConnection();
+        $search = trim($search);
+
+        $where = [];
+        $params = [];
+
+        if (!empty($search)) {
+            $where[] = "(s.name LIKE :q1 OR s.contact_person LIKE :q2 OR s.phone LIKE :q3 OR s.email LIKE :q4 OR p.po_number LIKE :q5)";
+            $q = "%$search%";
+            $params[':q1'] = $q;
+            $params[':q2'] = $q;
+            $params[':q3'] = $q;
+            $params[':q4'] = $q;
+            $params[':q5'] = $q;
+        }
+
+        $having = "";
+        if ($filter === 'debtors_only') {
+            $having = "HAVING balance_due > 0.005";
+        } elseif ($filter === 'high_debt') {
+            $having = "HAVING balance_due >= 500.00";
+        }
+
+        $whereClause = !empty($where) ? ('WHERE ' . implode(' AND ', $where)) : '';
+
+        $sql = "
+            SELECT 
+                s.id as supplier_id,
+                s.name as supplier_name,
+                s.contact_person,
+                s.phone as supplier_phone,
+                s.email as supplier_email,
+                s.address as supplier_address,
+                COUNT(p.id) as total_purchases_count,
+                COALESCE(SUM(p.net_amount), 0.00) as total_invoiced,
+                COALESCE(SUM(p.paid_amount), 0.00) as total_paid,
+                COALESCE(SUM(p.due_amount), 0.00) as balance_due,
+                MAX(p.created_at) as last_activity,
+                MAX(p.id) as latest_purchase_id
+            FROM suppliers s
+            LEFT JOIN purchases p ON s.id = p.supplier_id
+            {$whereClause}
+            GROUP BY s.id, s.name, s.contact_person, s.phone, s.email, s.address
+            {$having}
+            ORDER BY balance_due DESC, last_activity DESC
+        ";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $suppliersRows = $stmt->fetchAll();
+
+        // Also check if there are purchases without a registered supplier
+        $whereAdhoc = ["(p.supplier_id IS NULL OR p.supplier_id = 0)"];
+        $paramsAdhoc = [];
+        if ($filter === 'debtors_only') {
+            $whereAdhoc[] = "p.due_amount > 0.005";
+        } elseif ($filter === 'high_debt') {
+            $whereAdhoc[] = "p.due_amount >= 500.00";
+        }
+        if (!empty($search)) {
+            $whereAdhoc[] = "(p.po_number LIKE :aq1 OR p.notes LIKE :aq2)";
+            $paramsAdhoc[':aq1'] = "%$search%";
+            $paramsAdhoc[':aq2'] = "%$search%";
+        }
+        $sqlAdhoc = "
+            SELECT 
+                0 as supplier_id,
+                'Direct / Ad-hoc Vendor' as supplier_name,
+                'Direct Vendor' as contact_person,
+                'N/A' as supplier_phone,
+                '' as supplier_email,
+                'N/A' as supplier_address,
+                COUNT(p.id) as total_purchases_count,
+                COALESCE(SUM(p.net_amount), 0.00) as total_invoiced,
+                COALESCE(SUM(p.paid_amount), 0.00) as total_paid,
+                COALESCE(SUM(p.due_amount), 0.00) as balance_due,
+                MAX(p.created_at) as last_activity,
+                MAX(p.id) as latest_purchase_id
+            FROM purchases p
+            WHERE " . implode(' AND ', $whereAdhoc) . "
+            HAVING total_purchases_count > 0
+        ";
+        $stmtAdhoc = $pdo->prepare($sqlAdhoc);
+        $stmtAdhoc->execute($paramsAdhoc);
+        $adhoc = $stmtAdhoc->fetchAll();
+        if (!empty($adhoc) && $adhoc[0]['total_purchases_count'] > 0) {
+            $suppliersRows = array_merge($suppliersRows, $adhoc);
+        }
+
+        return $suppliersRows;
+    }
 }

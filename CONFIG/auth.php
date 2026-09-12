@@ -157,7 +157,7 @@ function getUserAllowedNavItems(string $role): array
         return [
             'dashboard', 'users', 'reception', 'doctor_dashboard', 'doctors', 'patients',
             'queue', 'consultations', 'laboratory', 'lab_catalog', 'lab_categories', 'pharmacy', 'inventory', 'suppliers',
-            'billing', 'accounting', 'expenses', 'reports'
+            'billing', 'accounting', 'expenses', 'reports', 'patient_debts', 'hospital_debts'
         ];
     }
 
@@ -166,7 +166,7 @@ function getUserAllowedNavItems(string $role): array
         return [
             'dashboard', 'users', 'reception', 'doctor_dashboard', 'patients',
             'queue', 'consultations', 'laboratory', 'lab_catalog', 'lab_categories', 'pharmacy', 'inventory', 'suppliers',
-            'billing', 'accounting', 'expenses', 'reports'
+            'billing', 'accounting', 'expenses', 'reports', 'patient_debts', 'hospital_debts'
         ];
     }
 
@@ -180,14 +180,14 @@ function getUserAllowedNavItems(string $role): array
     // 4. Pharmacy: Reception, Patients, Queue, Pharmacy, Billing, Inventory, Suppliers
     if ($role === ROLE_PHARMACY) {
         return [
-            'pharmacy', 'reception', 'patients', 'queue', 'inventory', 'suppliers', 'billing'
+            'pharmacy', 'reception', 'patients', 'queue', 'inventory', 'suppliers', 'billing', 'patient_debts', 'hospital_debts'
         ];
     }
 
-    // 5. Reception / Cashier: Reception, Patients, Queue, Billing
+    // 5. Reception / Cashier: Reception, Patients, Queue, Billing, Patient Debts
     if ($role === ROLE_RECEPTION_CASHIER) {
         return [
-            'reception', 'patients', 'queue', 'billing'
+            'reception', 'patients', 'queue', 'billing', 'patient_debts'
         ];
     }
 

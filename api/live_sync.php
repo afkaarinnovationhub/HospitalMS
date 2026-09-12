@@ -22,6 +22,8 @@ require_once __DIR__ . '/../OPERATIONS/ConsultationOperation.php';
 require_once __DIR__ . '/../OPERATIONS/LaboratoryOperation.php';
 require_once __DIR__ . '/../OPERATIONS/PharmacyOperation.php';
 require_once __DIR__ . '/../OPERATIONS/BillingOperation.php';
+require_once __DIR__ . '/../OPERATIONS/AccountingOperation.php';
+require_once __DIR__ . '/../OPERATIONS/InventoryOperation.php';
 
 initSecureSession();
 
@@ -995,6 +997,58 @@ try {
                 'query'    => $query,
                 'count'    => count($formatted),
                 'patients' => $formatted,
+            ]);
+            if (!defined('HPMS_TESTING')) { exit; }
+            return;
+
+        // =========================================================================
+        // 13. PATIENT DEBT STATEMENT & AUDIT LEDGER
+        // =========================================================================
+        case 'patient_debt_statement':
+            $pId = !empty($_GET['patient_id']) ? (int)$_GET['patient_id'] : null;
+            $invId = !empty($_GET['invoice_id']) ? (int)$_GET['invoice_id'] : null;
+
+            if (!$pId && !$invId) {
+                echo json_encode(['status' => 'error', 'message' => 'Missing patient or invoice identifier']);
+                if (!defined('HPMS_TESTING')) { exit; }
+                return;
+            }
+
+            $stmtData = AccountingOperation::getCustomerARStatement($pId, $invId);
+            if (!$stmtData) {
+                echo json_encode(['status' => 'error', 'message' => 'Statement not found']);
+                if (!defined('HPMS_TESTING')) { exit; }
+                return;
+            }
+
+            echo json_encode([
+                'status'    => 'success',
+                'statement' => $stmtData,
+            ]);
+            if (!defined('HPMS_TESTING')) { exit; }
+            return;
+
+        // =========================================================================
+        // 14. SUPPLIER DEBT STATEMENT & AUDIT LEDGER
+        // =========================================================================
+        case 'supplier_debt_statement':
+            $supId = !empty($_GET['supplier_id']) ? (int)$_GET['supplier_id'] : 0;
+            if ($supId <= 0) {
+                echo json_encode(['status' => 'error', 'message' => 'Missing or invalid supplier ID']);
+                if (!defined('HPMS_TESTING')) { exit; }
+                return;
+            }
+
+            $stmtData = InventoryOperation::getSupplierStatement($supId);
+            if (!$stmtData) {
+                echo json_encode(['status' => 'error', 'message' => 'Supplier statement not found']);
+                if (!defined('HPMS_TESTING')) { exit; }
+                return;
+            }
+
+            echo json_encode([
+                'status'    => 'success',
+                'statement' => $stmtData,
             ]);
             if (!defined('HPMS_TESTING')) { exit; }
             return;
