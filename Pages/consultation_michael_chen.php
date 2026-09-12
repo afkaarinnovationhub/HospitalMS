@@ -142,7 +142,6 @@ if (!$patient) {
                 <div>
                     <div class="flex items-center gap-2">
                         <h2 class="font-headline-sm text-lg sm:text-xl font-bold text-on-surface">Consultation Room Station</h2>
-                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30">Ready for Consultation</span>
                     </div>
                     <p class="text-xs text-on-surface-variant mt-0.5">
                         Attending: <strong>Dr. <?php echo e($currentUser['full_name']); ?></strong> (<?php echo e($currentUser['professional_title'] ?? 'General Practitioner'); ?>)
@@ -187,9 +186,6 @@ if (!$patient) {
                             <span class="material-symbols-outlined text-primary text-[20px]">queue</span>
                             Active Consultation Queue
                         </h3>
-                        <p class="text-xs text-on-surface-variant mt-0.5">
-                            Bukaanada safka kuugu jira. Waxaad si toos ah u wici kartaa bukaan kasta oo jooga, ama dib u dhigi kartaa (On Hold) haddii la waayo.
-                        </p>
                     </div>
                     <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary">
                         <?php echo count($waitingQueue); ?> Patients

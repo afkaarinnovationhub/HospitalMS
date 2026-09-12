@@ -181,6 +181,41 @@ include __DIR__ . '/../components/header.php';
             </div>
         </div>
 
+        <!-- Returning Patient Live Search & Instant Check-in Bar -->
+        <div class="bg-surface border border-outline-variant rounded-2xl p-4 sm:p-5 shadow-sm space-y-3 relative">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-primary-container text-on-primary-container flex items-center justify-center shadow-xs">
+                        <span class="material-symbols-outlined text-[22px]">person_search</span>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-sm sm:text-base text-on-surface flex items-center gap-2">
+                            Raadinta Bukaanka Hore
+                        </h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search input with live autocomplete dropdown -->
+            <div class="relative">
+                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[20px] pointer-events-none">search</span>
+                <input type="text" 
+                       id="global-patient-search" 
+                       oninput="handleGlobalPatientSearch(this.value)" 
+                       placeholder="Qor magaca bukaanka ama telefoonka" 
+                       autocomplete="off" 
+                       class="w-full pl-10 pr-10 py-2.5 bg-surface-container-low border border-outline-variant rounded-xl text-xs sm:text-sm text-on-surface focus:border-primary focus:bg-surface outline-none transition-all shadow-inner">
+                <button type="button" id="clear-global-search" onclick="clearGlobalPatientSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-1 rounded-lg cursor-pointer">
+                    <span class="material-symbols-outlined text-[18px]">close</span>
+                </button>
+                
+                <!-- Live Search Dropdown Container -->
+                <div id="global-search-results" class="hidden absolute z-30 left-0 right-0 top-full mt-1.5 bg-surface border border-outline-variant rounded-xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto custom-scrollbar divide-y divide-outline-variant/60">
+                    <!-- Dynamic items rendered via JS -->
+                </div>
+            </div>
+        </div>
+
         <!-- Main Functional Layout (8 Cols Intake Worklist + 4 Cols Live Doctor Rooms) -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-lg items-start">
             <!-- Left Column: Patient Intake Worklist & Check-in Table -->
@@ -343,15 +378,14 @@ include __DIR__ . '/../components/header.php';
     </div>
 </main>
 
-<!-- MODAL 1: Quick Patient Check-In & Token Issuance -->
-<div id="quick-intake-modal" class="fixed inset-0 z-50 bg-black/60 hidden backdrop-blur-xs flex items-center justify-center p-4">
-    <div class="bg-surface rounded-2xl border border-outline-variant max-w-lg w-full p-6 shadow-2xl custom-scrollbar">
-        <div class="flex justify-between items-center pb-3 border-b border-outline-variant mb-4">
+<!-- MODAL 1: Quick Patient Check-In & Token Issuance (Centered & Unified Form) -->
+<div id="quick-intake-modal" class="fixed inset-0 z-50 bg-black/60 hidden backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-surface rounded-2xl border border-outline-variant max-w-lg w-full p-4 sm:p-6 shadow-2xl max-h-[88vh] overflow-y-auto custom-scrollbar my-auto transition-all">
+        <div class="flex justify-between items-center pb-3 border-b border-outline-variant mb-3">
             <div class="flex items-center gap-2">
-                <span class="material-symbols-outlined text-primary text-[26px]">confirmation_number</span>
+                <span class="material-symbols-outlined text-primary text-[24px]">confirmation_number</span>
                 <div>
                     <h3 class="font-headline-sm text-base font-bold text-on-surface">Quick Patient Check-In</h3>
-                    <p class="text-xs text-on-surface-variant">Register basic details &amp; issue doctor queue token instantly.</p>
                 </div>
             </div>
             <button type="button" onclick="closeQuickIntakeModal()" class="text-on-surface-variant hover:text-on-surface p-1 rounded-lg cursor-pointer">
@@ -359,37 +393,76 @@ include __DIR__ . '/../components/header.php';
             </button>
         </div>
 
-        <form method="POST" action="reception.php" class="space-y-3">
+        <form id="quick-intake-form" method="POST" action="reception.php" class="space-y-3">
             <?php echo csrfField(); ?>
             <input type="hidden" name="action" value="quick_check_in">
+            <input type="hidden" id="intake_patient_id" name="patient_id" value="">
 
-            <!-- Section 1: Patient Name -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                    <label class="block text-[11px] font-semibold text-on-surface mb-0.5">First Name *</label>
-                    <input name="first_name" required class="w-full bg-surface-container-low border border-outline-variant rounded p-2 text-xs text-on-surface focus:border-primary outline-none" placeholder="e.g. Hassan" type="text">
+            <!-- Unified Optional Patient Search Bar -->
+            <div class="p-3 bg-surface-container-low rounded-xl border border-outline-variant/80 space-y-2">
+                <div class="flex items-center justify-between">
+                    <label class="block text-[11px] font-bold text-on-surface flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-primary text-[16px]">person_search</span>
+                        Raadi Bukaan Hore (Optional)
+                    </label>
                 </div>
-                <div>
-                    <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Last Name</label>
-                    <input name="last_name" class="w-full bg-surface-container-low border border-outline-variant rounded p-2 text-xs text-on-surface focus:border-primary outline-none" placeholder="e.g. Ali" type="text">
+                <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[18px] pointer-events-none">search</span>
+                    <input type="text" 
+                           id="modal-patient-search" 
+                           oninput="handleModalPatientSearch(this.value)" 
+                           placeholder="Baar bukaan hore si xogtiisu toos ugu buuxsanto..." 
+                           autocomplete="off" 
+                           class="w-full pl-9 pr-8 py-2 bg-surface border border-outline-variant rounded-lg text-xs text-on-surface focus:border-primary outline-none shadow-xs">
+                    <button type="button" id="clear-modal-search" onclick="clearModalPatientSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-0.5 rounded cursor-pointer">
+                        <span class="material-symbols-outlined text-[16px]">close</span>
+                    </button>
+                    <!-- Modal Autocomplete Dropdown -->
+                    <div id="modal-search-results" class="hidden absolute z-30 left-0 right-0 top-full mt-1 bg-surface border border-outline-variant rounded-xl shadow-xl overflow-hidden max-h-52 overflow-y-auto custom-scrollbar divide-y divide-outline-variant/60"></div>
+                </div>
+
+                <!-- Selected Patient Notification Pill (Visible when an existing patient is selected) -->
+                <div id="selected-patient-card" class="hidden p-2.5 rounded-lg border border-primary/40 bg-primary-fixed/20 flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="material-symbols-outlined text-primary text-[18px] shrink-0">check_circle</span>
+                        <div class="min-w-0 text-xs">
+                            <span class="font-bold text-on-surface" id="card-patient-name">--</span>
+                            <span id="card-patient-mrn" class="font-mono text-[10px] font-bold bg-primary text-on-primary px-1.5 py-0.2 rounded ml-1">--</span>
+                            <span id="card-patient-credit-badge" class="hidden text-[10px] font-bold text-emerald-800 dark:text-emerald-300 ml-1">
+                                • Credit: <span id="card-patient-credit-val">$0.00</span>
+                            </span>
+                        </div>
+                    </div>
+                    <button type="button" onclick="clearSelectedPatient()" class="text-[10px] font-bold text-error hover:bg-error/10 px-2 py-0.5 rounded border border-error/30 cursor-pointer shrink-0">
+                        Ka saar
+                    </button>
                 </div>
             </div>
 
-            <!-- Line Separator: Contact & Demographics -->
-            <div class="border-t border-outline-variant/60 pt-3">
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Phone Number *</label>
-                        <input name="phone" required class="w-full bg-surface-container-low border border-outline-variant rounded p-2 text-xs text-on-surface focus:border-primary outline-none" placeholder="e.g. (555) 123-4567" type="text">
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Gender</label>
-                        <select name="gender" class="w-full bg-surface-container-low border border-outline-variant rounded p-2 text-xs text-on-surface focus:border-primary outline-none">
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </div>
+            <!-- Patient Core Details Inputs (Populated if searched, or filled directly for new patient) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-0.5">
+                <div>
+                    <label class="block text-[11px] font-semibold text-on-surface mb-0.5">First Name *</label>
+                    <input id="intake_first_name" name="first_name" required class="w-full bg-surface-container-low border border-outline-variant rounded p-2 text-xs text-on-surface focus:border-primary outline-none" placeholder="e.g. Hassan" type="text">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Last Name</label>
+                    <input id="intake_last_name" name="last_name" class="w-full bg-surface-container-low border border-outline-variant rounded p-2 text-xs text-on-surface focus:border-primary outline-none" placeholder="e.g. Ali" type="text">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                    <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Phone Number *</label>
+                    <input id="intake_phone" name="phone" required class="w-full bg-surface-container-low border border-outline-variant rounded p-2 text-xs text-on-surface focus:border-primary outline-none" placeholder="e.g. 25261..." type="text">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Gender</label>
+                    <select id="intake_gender" name="gender" class="w-full bg-surface-container-low border border-outline-variant rounded p-2 text-xs text-on-surface focus:border-primary outline-none">
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="other">Other</option>
+                    </select>
                 </div>
             </div>
 
@@ -415,7 +488,7 @@ include __DIR__ . '/../components/header.php';
                                 <?php if ($i > 0): ?>
                                     <option disabled>──────────────────────────────────────────────────</option>
                                 <?php endif; ?>
-                                <option value="<?php echo (int)$doc['id']; ?>" data-fee="<?php echo $docFee; ?>">
+                                <option value="<?php echo (int)$doc['id']; ?>" data-fee="<?php echo $docFee; ?>" data-dept="<?php echo e($docSpecialty); ?>">
                                     <?php echo e($doc['full_name']); ?>  |  <?php echo e($docSpecialty); ?>  |  $<?php echo number_format($docFee, 2); ?> (<?php echo $cnt; ?> in queue)
                                 </option>
                             <?php endforeach; ?>
@@ -441,19 +514,12 @@ include __DIR__ . '/../components/header.php';
                     </div>
 
 
-                    <!-- Inner Line Separator: Department & Priority -->
+                    <!-- Hidden auto-resolved Department from doctor -->
+                    <input type="hidden" id="reception_intake_dept" name="department" value="">
+
+                    <!-- Inner Line Separator: Priority & Symptoms -->
                     <div class="border-t border-primary/20 pt-2.5">
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <div>
-                                <label class="block text-[11px] font-semibold text-on-surface-variant mb-0.5">Department</label>
-                                <select name="department" class="w-full bg-surface border border-outline-variant rounded p-1.5 text-xs">
-                                    <option value="General OPD">General OPD</option>
-                                    <option value="Cardiology OPD">Cardiology OPD</option>
-                                    <option value="Neurology OPD">Neurology OPD</option>
-                                    <option value="Endocrinology OPD">Endocrinology OPD</option>
-                                    <option value="Pediatrics OPD">Pediatrics OPD</option>
-                                </select>
-                            </div>
                             <div>
                                 <label class="block text-[11px] font-semibold text-on-surface-variant mb-0.5">Priority Level</label>
                                 <select name="priority" class="w-full bg-surface border border-outline-variant rounded p-1.5 text-xs font-semibold">
@@ -462,13 +528,11 @@ include __DIR__ . '/../components/header.php';
                                     <option value="emergency">Emergency Priority</option>
                                 </select>
                             </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-on-surface-variant mb-0.5">Reason for Visit / Symptoms (Optional)</label>
+                                <input name="chief_complaint" class="w-full bg-surface border border-outline-variant rounded p-1.5 text-xs" placeholder="e.g. Headache, fever..." type="text">
+                            </div>
                         </div>
-                    </div>
-
-                    <!-- Inner Line Separator: Symptoms -->
-                    <div class="border-t border-primary/20 pt-2.5">
-                        <label class="block text-[11px] font-semibold text-on-surface-variant mb-0.5">Reason for Visit / Symptoms (Optional)</label>
-                        <input name="chief_complaint" class="w-full bg-surface border border-outline-variant rounded p-1.5 text-xs" placeholder="e.g. Headache, fever, blood pressure check..." type="text">
                     </div>
                 </div>
             </div>
@@ -614,12 +678,268 @@ include __DIR__ . '/../components/header.php';
 </div>
 
 <script>
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
     function openQuickIntakeModal() {
         document.getElementById('quick-intake-modal').classList.remove('hidden');
+        const input = document.getElementById('modal-patient-search');
+        if (input && !document.getElementById('intake_patient_id').value) {
+            setTimeout(() => input.focus(), 60);
+        }
     }
+
     function closeQuickIntakeModal() {
         document.getElementById('quick-intake-modal').classList.add('hidden');
+        const modalResults = document.getElementById('modal-search-results');
+        if (modalResults) modalResults.classList.add('hidden');
     }
+
+    // --- Search Handlers with Debounce ---
+    let globalSearchTimeout = null;
+    function handleGlobalPatientSearch(query) {
+        const clearBtn = document.getElementById('clear-global-search');
+        const resultsBox = document.getElementById('global-search-results');
+        const trimmed = query.trim();
+
+        if (clearBtn) {
+            clearBtn.classList.toggle('hidden', trimmed === '');
+        }
+
+        if (trimmed.length === 0) {
+            resultsBox.classList.add('hidden');
+            resultsBox.innerHTML = '';
+            return;
+        }
+
+        clearTimeout(globalSearchTimeout);
+        globalSearchTimeout = setTimeout(() => {
+            fetchPatients(trimmed, function(patients) {
+                renderSearchResults(patients, resultsBox, true);
+            });
+        }, 220);
+    }
+
+    function clearGlobalPatientSearch() {
+        const input = document.getElementById('global-patient-search');
+        if (input) input.value = '';
+        const clearBtn = document.getElementById('clear-global-search');
+        if (clearBtn) clearBtn.classList.add('hidden');
+        const resultsBox = document.getElementById('global-search-results');
+        if (resultsBox) {
+            resultsBox.classList.add('hidden');
+            resultsBox.innerHTML = '';
+        }
+    }
+
+    let modalSearchTimeout = null;
+    function handleModalPatientSearch(query) {
+        const clearBtn = document.getElementById('clear-modal-search');
+        const resultsBox = document.getElementById('modal-search-results');
+        const trimmed = query.trim();
+
+        if (clearBtn) {
+            clearBtn.classList.toggle('hidden', trimmed === '');
+        }
+
+        if (trimmed.length === 0) {
+            resultsBox.classList.add('hidden');
+            resultsBox.innerHTML = '';
+            return;
+        }
+
+        clearTimeout(modalSearchTimeout);
+        modalSearchTimeout = setTimeout(() => {
+            fetchPatients(trimmed, function(patients) {
+                renderSearchResults(patients, resultsBox, false);
+            });
+        }, 220);
+    }
+
+    function clearModalPatientSearch() {
+        const input = document.getElementById('modal-patient-search');
+        if (input) input.value = '';
+        const clearBtn = document.getElementById('clear-modal-search');
+        if (clearBtn) clearBtn.classList.add('hidden');
+        const resultsBox = document.getElementById('modal-search-results');
+        if (resultsBox) {
+            resultsBox.classList.add('hidden');
+            resultsBox.innerHTML = '';
+        }
+    }
+
+    function fetchPatients(query, callback) {
+        fetch('../api/live_sync.php?module=search_patients&q=' + encodeURIComponent(query))
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.status === 'success') {
+                    callback(data.patients || []);
+                } else {
+                    callback([]);
+                }
+            })
+            .catch(err => {
+                console.error('[PATIENT SEARCH ERROR]', err);
+                callback([]);
+            });
+    }
+
+    // Cache active patients for safe selection by ID
+    let currentSearchResults = {};
+
+    function renderSearchResults(patients, container, isGlobal) {
+        if (!patients || patients.length === 0) {
+            container.innerHTML = `
+                <div class="p-4 text-center text-on-surface-variant text-xs space-y-1">
+                    <span class="material-symbols-outlined text-outline text-[22px]">person_off</span>
+                    <p class="font-semibold">Ma jiro bukaan aad raadineyso.</p>
+                </div>
+            `;
+            container.classList.remove('hidden');
+            return;
+        }
+
+        currentSearchResults = {};
+        patients.forEach(p => { currentSearchResults[p.id] = p; });
+
+        let html = '';
+        patients.forEach(p => {
+            const fullName = escapeHtml(p.full_name || (p.first_name + ' ' + p.last_name));
+            const mrn = escapeHtml(p.mrn || '');
+            const phone = escapeHtml(p.phone || 'No phone');
+            const gender = (p.gender || 'male').toLowerCase();
+            const genderIcon = gender === 'female' ? 'female' : 'male';
+            const ageStr = (p.age !== null && p.age !== undefined && p.age !== '') ? (p.age + ' yrs') : '';
+            const blood = p.blood_group ? `<span class="px-1.5 py-0.2 text-[10px] font-bold rounded bg-surface-container-high border border-outline-variant text-on-surface">${escapeHtml(p.blood_group)}</span>` : '';
+            const credit = parseFloat(p.account_credit || 0);
+            const creditBadge = credit > 0.005 ? `<span class="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-500/20 border border-emerald-500/30 px-1.5 py-0.2 rounded"><span class="material-symbols-outlined text-[12px]">account_balance_wallet</span> Credit: $${credit.toFixed(2)}</span>` : '';
+            const initial = (fullName.trim().charAt(0) || 'P').toUpperCase();
+
+            html += `
+            <div onclick="selectPatientById(${p.id}, ${isGlobal})" class="p-3 hover:bg-primary-fixed/20 transition-colors cursor-pointer flex items-center justify-between gap-2.5 group">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-8 h-8 rounded-full bg-primary text-on-primary font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                        ${initial}
+                    </div>
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <h4 class="font-bold text-xs text-on-surface group-hover:text-primary transition-colors truncate">${fullName}</h4>
+                            <span class="font-mono text-[10px] font-bold bg-surface-container-high px-1.5 py-0.2 rounded text-on-surface-variant">${mrn}</span>
+                            ${blood}
+                            ${creditBadge}
+                        </div>
+                        <p class="text-[11px] text-on-surface-variant font-mono mt-0.5 flex items-center gap-1.5 flex-wrap">
+                            <span class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[13px]">${genderIcon}</span> ${gender}</span>
+                            ${ageStr ? `<span>• ${ageStr}</span>` : ''}
+                            <span>• 📞 ${phone}</span>
+                        </p>
+                    </div>
+                </div>
+                <button type="button" class="shrink-0 px-2.5 py-1 bg-primary text-on-primary group-hover:bg-primary-container group-hover:text-on-primary-container text-[11px] font-bold rounded-lg transition-colors flex items-center gap-1 shadow-xs cursor-pointer">
+                    <span class="material-symbols-outlined text-[13px]">check</span>
+                    Dooro
+                </button>
+            </div>
+            `;
+        });
+
+        container.innerHTML = html;
+        container.classList.remove('hidden');
+    }
+
+    function selectPatientById(patientId, isGlobal) {
+        const patient = currentSearchResults[patientId];
+        if (!patient) return;
+
+        if (isGlobal) {
+            openQuickIntakeModal();
+        }
+        selectPatientInModal(patient);
+        clearGlobalPatientSearch();
+    }
+
+    function selectPatientInModal(patient) {
+        document.getElementById('intake_patient_id').value = patient.id || '';
+        document.getElementById('intake_first_name').value = patient.first_name || '';
+        document.getElementById('intake_last_name').value = patient.last_name || '';
+        document.getElementById('intake_phone').value = patient.phone || '';
+        if (patient.gender && document.getElementById('intake_gender')) {
+            document.getElementById('intake_gender').value = patient.gender;
+        }
+
+        // Populate Selected Patient Pill
+        const fullName = (patient.first_name || '') + ' ' + (patient.last_name || '');
+        const nameEl = document.getElementById('card-patient-name');
+        if (nameEl) nameEl.textContent = fullName.trim();
+
+        const mrnEl = document.getElementById('card-patient-mrn');
+        if (mrnEl) mrnEl.textContent = patient.mrn || 'NO MRN';
+
+        const credit = parseFloat(patient.account_credit || 0);
+        const creditBox = document.getElementById('card-patient-credit-badge');
+        if (creditBox) {
+            if (credit > 0.005) {
+                const creditVal = document.getElementById('card-patient-credit-val');
+                if (creditVal) creditVal.textContent = '$' + credit.toFixed(2);
+                creditBox.classList.remove('hidden');
+            } else {
+                creditBox.classList.add('hidden');
+            }
+        }
+
+        const card = document.getElementById('selected-patient-card');
+        if (card) card.classList.remove('hidden');
+
+        const modalResults = document.getElementById('modal-search-results');
+        if (modalResults) modalResults.classList.add('hidden');
+
+        const searchInput = document.getElementById('modal-patient-search');
+        if (searchInput) searchInput.value = '';
+
+        const clearBtn = document.getElementById('clear-modal-search');
+        if (clearBtn) clearBtn.classList.add('hidden');
+
+        // Focus doctor selection
+        const docSelect = document.getElementById('reception_doc_select');
+        if (docSelect) docSelect.focus();
+    }
+
+    function clearSelectedPatient() {
+        document.getElementById('intake_patient_id').value = '';
+        document.getElementById('intake_first_name').value = '';
+        document.getElementById('intake_last_name').value = '';
+        document.getElementById('intake_phone').value = '';
+        const card = document.getElementById('selected-patient-card');
+        if (card) card.classList.add('hidden');
+        const input = document.getElementById('modal-patient-search');
+        if (input) {
+            input.value = '';
+            input.focus();
+        }
+    }
+
+    // Dismiss dropdowns when clicked outside
+    document.addEventListener('click', function(e) {
+        const globalSearchBox = document.getElementById('global-patient-search');
+        const globalResults = document.getElementById('global-search-results');
+        if (globalResults && !globalResults.contains(e.target) && e.target !== globalSearchBox) {
+            globalResults.classList.add('hidden');
+        }
+
+        const modalSearchBox = document.getElementById('modal-patient-search');
+        const modalResults = document.getElementById('modal-search-results');
+        if (modalResults && !modalResults.contains(e.target) && e.target !== modalSearchBox) {
+            modalResults.classList.add('hidden');
+        }
+    });
+
     let currentPatientPaidFee = 10.00;
     let currentPatientCredit = 0.00;
 
@@ -689,6 +1009,11 @@ include __DIR__ . '/../components/header.php';
         const fee = opt ? opt.getAttribute('data-fee') : '10.00';
         if (fee !== null && fee !== undefined && fee !== '') {
             document.getElementById('reception_intake_fee').value = parseFloat(fee).toFixed(2);
+        }
+        const dept = opt ? opt.getAttribute('data-dept') : '';
+        const deptInput = document.getElementById('reception_intake_dept');
+        if (deptInput && dept) {
+            deptInput.value = dept;
         }
     }
     function setReceptionFee(val) {

@@ -224,16 +224,28 @@ class PatientController
             $phone     = sanitizeString($post['phone'] ?? '');
             $gender    = in_array($post['gender'] ?? 'male', ['male', 'female', 'other'], true) ? $post['gender'] : 'male';
             $doctorId  = !empty($post['doctor_id']) ? (int)$post['doctor_id'] : null;
-            $department = sanitizeString($post['department'] ?? 'General OPD');
+            $department = sanitizeString($post['department'] ?? '');
             $priority   = $post['priority'] ?? 'normal';
             $complaint  = sanitizeString($post['chief_complaint'] ?? '');
             $fee        = isset($post['consultation_fee']) && $post['consultation_fee'] !== '' ? max(0.0, (float)$post['consultation_fee']) : null;
+
+            $patientId = !empty($post['patient_id']) ? (int)$post['patient_id'] : null;
+
+            if ($patientId > 0 && (empty($firstName) || empty($phone))) {
+                $existingPat = PatientOperation::getPatientById($patientId);
+                if ($existingPat) {
+                    if (empty($firstName)) $firstName = $existingPat['first_name'];
+                    if (empty($lastName))  $lastName  = $existingPat['last_name'];
+                    if (empty($phone))     $phone     = $existingPat['phone'];
+                }
+            }
 
             if (empty($firstName) || empty($phone)) {
                 return ['error' => 'Patient name and phone number are required.'];
             }
 
             $result = PatientOperation::quickReceptionCheckIn([
+                'patient_id'        => $patientId,
                 'first_name'        => $firstName,
                 'last_name'         => $lastName,
                 'phone'             => $phone,

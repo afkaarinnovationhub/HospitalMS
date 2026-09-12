@@ -323,7 +323,7 @@ include __DIR__ . '/../components/header.php';
             <div class="border-t border-outline-variant/60 pt-3">
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                        <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Specialization / Department *</label>
+                        <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Department *</label>
                         <input name="professional_title" required class="w-full bg-surface-container-low border border-outline-variant rounded p-2 text-xs text-on-surface focus:border-primary outline-none" placeholder="e.g. Senior Cardiologist" type="text">
                     </div>
                     <div>

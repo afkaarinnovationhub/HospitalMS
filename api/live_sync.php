@@ -963,7 +963,41 @@ try {
             if (!defined('HPMS_TESTING')) { exit; }
             return;
 
+        // =========================================================================
+        // PATIENT SEARCH (Instant Autocomplete for Reception & Clinical Check-in)
+        // =========================================================================
+        case 'search_patients':
+            $query = sanitizeString($_GET['q'] ?? '');
+            $limit = !empty($_GET['limit']) ? min(30, max(1, (int)$_GET['limit'])) : 10;
+            $patients = PatientOperation::searchPatients($query, $limit);
+            
+            $formatted = [];
+            foreach ($patients as $p) {
+                $formatted[] = [
+                    'id'             => (int)$p['id'],
+                    'mrn'            => $p['mrn'] ?? '',
+                    'first_name'     => $p['first_name'] ?? '',
+                    'last_name'      => $p['last_name'] ?? '',
+                    'full_name'      => trim(($p['first_name'] ?? '') . ' ' . ($p['last_name'] ?? '')),
+                    'phone'          => $p['phone'] ?? '',
+                    'gender'         => $p['gender'] ?? 'male',
+                    'dob'            => $p['dob'] ?? '',
+                    'age'            => isset($p['age']) ? (int)$p['age'] : null,
+                    'blood_group'    => $p['blood_group'] ?? '',
+                    'allergies'      => $p['allergies'] ?? 'None known',
+                    'account_credit' => (float)($p['account_credit'] ?? 0.0),
+                    'address'        => $p['address'] ?? '',
+                ];
+            }
 
+            echo json_encode([
+                'status'   => 'success',
+                'query'    => $query,
+                'count'    => count($formatted),
+                'patients' => $formatted,
+            ]);
+            if (!defined('HPMS_TESTING')) { exit; }
+            return;
 
         default:
             echo json_encode(['status' => 'error', 'message' => 'Unknown module']);

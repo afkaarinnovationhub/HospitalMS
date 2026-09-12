@@ -356,6 +356,16 @@ class PatientOperation
     {
         $pdo = getDBConnection();
 
+        // Auto-resolve department from doctor if department is default/empty
+        if ($doctorId && ($department === '' || $department === 'General OPD')) {
+            $stmtDoc = $pdo->prepare("SELECT professional_title FROM users WHERE id = :id AND role = 'doctor' LIMIT 1");
+            $stmtDoc->execute([':id' => $doctorId]);
+            $docTitle = $stmtDoc->fetchColumn();
+            if (!empty($docTitle)) {
+                $department = trim((string)$docTitle);
+            }
+        }
+
         // If patient already has an active queue entry (waiting/in_consultation), reassign that entry to avoid duplicates
         $stmtExisting = $pdo->prepare("
             SELECT id FROM patient_queues 
@@ -620,34 +630,58 @@ class PatientOperation
         $genderRaw = $data['gender'] ?? 'male';
         $gender    = in_array($genderRaw, ['male', 'female', 'other'], true) ? $genderRaw : 'male';
         $doctorId   = !empty($data['doctor_id']) ? (int)$data['doctor_id'] : null;
-        $department = !empty($data['department']) ? trim($data['department']) : 'General OPD';
+        $department = !empty($data['department']) ? trim($data['department']) : '';
         $rawPriority = $data['priority'] ?? 'normal';
         $priority    = in_array($rawPriority, ['normal', 'urgent', 'emergency'], true) ? $rawPriority : 'normal';
         $chiefComplaint = trim($data['chief_complaint'] ?? '');
         $userId    = !empty($data['user_id']) ? (int)$data['user_id'] : 1;
 
-        // Custom or Dynamic Doctor Consultation Fee
+        // Custom or Dynamic Doctor Consultation Fee & Auto Department from Doctor Profile
         $consultationFee = isset($data['consultation_fee']) ? max(0.0, (float)$data['consultation_fee']) : null;
-        if ($consultationFee === null) {
-            if ($doctorId) {
-                $stmtF = $pdo->prepare("SELECT consultation_fee FROM users WHERE id = ?");
-                $stmtF->execute([$doctorId]);
-                $docFee = $stmtF->fetchColumn();
-                $consultationFee = ($docFee !== false && $docFee !== null) ? (float)$docFee : 10.00;
-            } else {
-                $consultationFee = 10.00;
+        if ($doctorId) {
+            $stmtDoc = $pdo->prepare("SELECT professional_title, consultation_fee FROM users WHERE id = ?");
+            $stmtDoc->execute([$doctorId]);
+            $docRow = $stmtDoc->fetch();
+            if ($docRow) {
+                if (empty($department) || $department === 'General OPD') {
+                    if (!empty($docRow['professional_title'])) {
+                        $department = trim((string)$docRow['professional_title']);
+                    }
+                }
+                if ($consultationFee === null && $docRow['consultation_fee'] !== null) {
+                    $consultationFee = (float)$docRow['consultation_fee'];
+                }
             }
+        }
+        if (empty($department)) {
+            $department = 'General OPD';
+        }
+        if ($consultationFee === null) {
+            $consultationFee = 10.00;
+        }
+
+        // 1. Check if patient already exists by explicit ID or MRN first
+        $patientIdParam = !empty($data['patient_id']) ? (int)$data['patient_id'] : 0;
+        $existingPatient = null;
+        if ($patientIdParam > 0) {
+            $existingPatient = self::getPatientById($patientIdParam);
+        }
+        if (!$existingPatient && !empty($data['mrn'])) {
+            $existingPatient = self::getPatientByMRN($data['mrn']);
+        }
+
+        // Fallback names & phone from existing patient if not explicitly supplied
+        if ($existingPatient) {
+            if (empty($firstName)) $firstName = $existingPatient['first_name'];
+            if (empty($lastName))  $lastName  = $existingPatient['last_name'];
+            if (empty($phone))     $phone     = $existingPatient['phone'];
         }
 
         if (empty($firstName) || empty($phone)) {
             throw new InvalidArgumentException('Patient name and phone number are required for quick intake.');
         }
 
-        // 1. Check if patient already exists by phone or MRN
-        $existingPatient = null;
-        if (!empty($data['mrn'])) {
-            $existingPatient = self::getPatientByMRN($data['mrn']);
-        }
+        // Check if patient exists by phone if not found by ID/MRN
         if (!$existingPatient && !empty($phone)) {
             $stmt = $pdo->prepare("SELECT * FROM patients WHERE phone = :phone LIMIT 1");
             $stmt->execute([':phone' => $phone]);
