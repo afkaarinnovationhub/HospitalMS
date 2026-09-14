@@ -372,22 +372,42 @@ class InventoryOperation
         $pdo = getDBConnection();
         $stmtSup = $pdo->prepare("SELECT * FROM suppliers WHERE id = ?");
         $stmtSup->execute([$supplierId]);
-        $supplier = $stmtSup->fetch();
+        $supplier = $stmtSup->fetch(PDO::FETCH_ASSOC);
         if (!$supplier) {
             return null;
         }
 
         // 1. Fetch Purchase Orders from this supplier
         $stmtPurchases = $pdo->prepare("
-            SELECT p.*, mb.batch_number, mb.expiry_date, mb.quantity_received as batch_quantity, m.name as medication_name, m.med_code
+            SELECT p.*, u.full_name as purchaser_name
             FROM purchases p
-            LEFT JOIN medicine_batches mb ON mb.purchase_id = p.id
-            LEFT JOIN medications m ON mb.medication_id = m.id
+            LEFT JOIN users u ON p.created_by = u.id
             WHERE p.supplier_id = ?
             ORDER BY p.purchase_date DESC, p.id DESC
         ");
         $stmtPurchases->execute([$supplierId]);
-        $purchases = $stmtPurchases->fetchAll();
+        $purchases = $stmtPurchases->fetchAll(PDO::FETCH_ASSOC);
+
+        // Attach itemized batches for each purchase
+        $stmtBatches = $pdo->prepare("
+            SELECT mb.*, m.name as medication_name, m.med_code
+            FROM medicine_batches mb
+            LEFT JOIN medications m ON mb.medication_id = m.id
+            WHERE mb.purchase_id = ?
+        ");
+
+        foreach ($purchases as &$pur) {
+            $stmtBatches->execute([$pur['id']]);
+            $pur['items'] = $stmtBatches->fetchAll(PDO::FETCH_ASSOC);
+            $summaries = [];
+            foreach ($pur['items'] as $it) {
+                $medName = $it['medication_name'] ?: 'Medication';
+                $qty = (int)($it['quantity_received'] ?? 0);
+                $summaries[] = "{$medName} ({$qty}x)";
+            }
+            $pur['item_summary'] = !empty($summaries) ? implode(', ', $summaries) : 'Medication Restock';
+        }
+        unset($pur);
 
         // 2. Fetch Payment Disbursements for this supplier
         $stmtPayments = $pdo->prepare("
@@ -399,7 +419,7 @@ class InventoryOperation
             ORDER BY sp.paid_at DESC, sp.id DESC
         ");
         $stmtPayments->execute([$supplierId]);
-        $payments = $stmtPayments->fetchAll();
+        $payments = $stmtPayments->fetchAll(PDO::FETCH_ASSOC);
 
         // Calculate summary
         $totalInvoiced = 0.0;
@@ -419,6 +439,7 @@ class InventoryOperation
             'total_invoiced' => $totalInvoiced,
             'total_paid'     => $totalPaid,
             'total_due'      => $totalDue,
+            'statement_date' => date('M d, Y'),
         ];
     }
 
@@ -701,9 +722,9 @@ class InventoryOperation
      * @param string $paymentMethod
      * @param string|null $notes
      * @param int $paidBy
-     * @return bool
+     * @return int|bool Payment ID on success, or true
      */
-    public static function recordSupplierPayment(int $purchaseId, float $amountPaid, string $paymentMethod, ?string $notes, int $paidBy): bool
+    public static function recordSupplierPayment(int $purchaseId, float $amountPaid, string $paymentMethod, ?string $notes, int $paidBy): int|bool
     {
         $pdo = getDBConnection();
         $pdo->beginTransaction();
@@ -764,6 +785,7 @@ class InventoryOperation
                 ':notes'         => $notes ?: 'Supplier debt installment payment',
                 ':paid_by'       => $paidBy,
             ]);
+            $paymentId = (int)$pdo->lastInsertId();
 
             // 2. Update purchase balance
             $newPaidAmount = (float)$purchase['paid_amount'] + $paymentAmount;
@@ -821,7 +843,7 @@ class InventoryOperation
             }
 
             $pdo->commit();
-            return true;
+            return $paymentId > 0 ? $paymentId : true;
 
         } catch (Exception $e) {
             $pdo->rollBack();

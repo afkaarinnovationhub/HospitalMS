@@ -974,7 +974,11 @@ try {
             $patients = PatientOperation::searchPatients($query, $limit);
             
             $formatted = [];
+            $debtStmt = $pdo->prepare("SELECT COALESCE(SUM(due_amount), 0.00) FROM invoices WHERE patient_id = ? AND due_amount > 0.005");
             foreach ($patients as $p) {
+                $debtStmt->execute([$p['id']]);
+                $curDebt = (float)$debtStmt->fetchColumn();
+
                 $formatted[] = [
                     'id'             => (int)$p['id'],
                     'mrn'            => $p['mrn'] ?? '',
@@ -988,6 +992,7 @@ try {
                     'blood_group'    => $p['blood_group'] ?? '',
                     'allergies'      => $p['allergies'] ?? 'None known',
                     'account_credit' => (float)($p['account_credit'] ?? 0.0),
+                    'current_debt'   => $curDebt,
                     'address'        => $p['address'] ?? '',
                 ];
             }

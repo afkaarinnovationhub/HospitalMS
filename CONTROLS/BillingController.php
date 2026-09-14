@@ -114,20 +114,39 @@ class BillingController
                     'net_total'        => (float)$invDetails['net_total'],
                     'paid_amount'      => (float)$paidAmount,
                     'due_amount'       => (float)$invDetails['due_amount'],
-                    'payment_method'   => strtoupper($paymentMethod),
+                    'payment_method'   => ((float)$paidAmount <= 0.001) ? 'DEBT / A/R 1100' : strtoupper($paymentMethod),
                     'invoice_number'   => $result['invoice_number'],
-                    'payment_status'   => ((float)$invDetails['due_amount'] <= 0.001) ? 'PAID & VERIFIED' : 'PARTIAL PAYMENT',
+                    'payment_status'   => ((float)$invDetails['due_amount'] <= 0.001) 
+                        ? 'PAID & VERIFIED' 
+                        : (((float)$paidAmount <= 0.001) ? 'CLEARED ON CREDIT (DEBT)' : 'PARTIAL PAYMENT'),
+                    'clearance_stamp'  => ((float)$invDetails['due_amount'] <= 0.001)
+                        ? $receiptConfig['stamp']
+                        : (((float)$paidAmount <= 0.001) ? '✓ CLEARED ON CREDIT (DEBT RECORDED)' : '✓ PARTIAL PAYMENT RECORDED'),
+                    'notice'           => ((float)$paidAmount <= 0.001)
+                        ? 'Biilkan waxaa loo fasaxay Deyn Bukaanka (A/R 1100). Fadlan fariiso qeybta sugitaanka.'
+                        : $receiptConfig['notice'],
+                    'subnotice'        => ((float)$paidAmount <= 0.001)
+                        ? 'Cleared on Credit / Accounts Receivable 1100. Please proceed to clinical area.'
+                        : $receiptConfig['subnotice'],
                     'date_time'        => date('M d, Y g:i A'),
                 ];
             }
 
-            $successMsg = sprintf(
-                'Payment of $%.2f processed successfully for Invoice #%s.',
-                $result['amount_paid'],
-                $result['invoice_number']
-            );
-            if (!empty($invDetails['due_amount']) && (float)$invDetails['due_amount'] > 0.001) {
-                $successMsg .= sprintf(' Haraaga ($%.2f) waxaa loo diiwaangeliyay Deyn (Accounts Receivable 1100).', (float)$invDetails['due_amount']);
+            if ((float)$paidAmount <= 0.001) {
+                $successMsg = sprintf(
+                    'Invoice #%s approved on 100%% Debt (Accounts Receivable 1100: $%.2f). Patient cleared for clinical service.',
+                    $result['invoice_number'],
+                    (float)$invDetails['due_amount']
+                );
+            } else {
+                $successMsg = sprintf(
+                    'Payment of $%.2f processed successfully for Invoice #%s.',
+                    $result['amount_paid'],
+                    $result['invoice_number']
+                );
+                if (!empty($invDetails['due_amount']) && (float)$invDetails['due_amount'] > 0.001) {
+                    $successMsg .= sprintf(' Haraaga ($%.2f) waxaa loo diiwaangeliyay Deyn (Accounts Receivable 1100).', (float)$invDetails['due_amount']);
+                }
             }
             $successMsg .= ' ' . ($_SESSION['hpms_print_paid_token']['receipt_title'] ?? 'Receipt') . ' is ready for printing.';
             setFlashMessage('success', $successMsg);

@@ -31,6 +31,10 @@ require_once __DIR__ . '/CONFIG/security.php';
 require_once __DIR__ . '/OPERATIONS/AccountingOperation.php';
 require_once __DIR__ . '/OPERATIONS/LaboratoryOperation.php';
 
+if (php_sapi_name() !== 'cli') {
+    header('Content-Type: text/plain; charset=utf-8');
+}
+
 $pdo = getDBConnection();
 
 echo "\n======================================================================\n";
@@ -41,7 +45,8 @@ $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
 
 // 1. Transactional, Clinical & Catalog Tables to Truncate
 $tablesToClear = [
-    // Invoicing & General Ledger
+    // Invoicing, Running Balance Payments & General Ledger
+    'invoice_payments',
     'invoice_items',
     'invoices',
     'refund_vouchers',

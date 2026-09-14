@@ -28,6 +28,67 @@ class BillingOperation
     }
 
     /**
+     * Ensures the invoice_payments table exists in the database.
+     */
+    public static function ensureInvoicePaymentsTable(): void
+    {
+        static $ensured = false;
+        if ($ensured) {
+            return;
+        }
+        $pdo = getDBConnection();
+        try {
+            $check = $pdo->query("SELECT 1 FROM `invoice_payments` LIMIT 1");
+            if ($check !== false) {
+                $ensured = true;
+                return;
+            }
+        } catch (Throwable $e) {
+            // Table doesn't exist yet
+        }
+
+        // MySQL DDL statements (like CREATE TABLE) trigger an implicit COMMIT of any active transaction.
+        // Therefore, never execute DDL if a transaction is currently in progress.
+        if (!$pdo->inTransaction()) {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `invoice_payments` (
+                    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    `invoice_id` INT UNSIGNED NOT NULL,
+                    `patient_id` INT UNSIGNED NULL,
+                    `receipt_number` VARCHAR(50) NOT NULL,
+                    `previous_balance` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+                    `amount_paid` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+                    `remaining_balance` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+                    `payment_method` ENUM('cash', 'mobile', 'card', 'bank', 'insurance', 'credit') NOT NULL DEFAULT 'cash',
+                    `received_by` INT UNSIGNED NOT NULL DEFAULT 1,
+                    `notes` TEXT NULL,
+                    `paid_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    INDEX `idx_inv_pay_inv` (`invoice_id`),
+                    INDEX `idx_inv_pay_pat` (`patient_id`),
+                    INDEX `idx_inv_pay_date` (`paid_at`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+            $ensured = true;
+        }
+    }
+
+    /**
+     * Generates a unique sequential Receipt Number (e.g. REC-2026-0001).
+     */
+    public static function generateReceiptNumber(): string
+    {
+        $pdo = getDBConnection();
+        $year = date('Y');
+        self::ensureInvoicePaymentsTable();
+
+        $stmt = $pdo->query("SELECT MAX(id) FROM invoice_payments");
+        $maxId = (int)$stmt->fetchColumn();
+        $nextId = $maxId + 1;
+
+        return sprintf("REC-%s-%04d", $year, $nextId);
+    }
+
+    /**
      * Creates a consultation fee invoice when a patient is checked in & issued a token.
      */
     public static function createConsultationInvoice(
@@ -359,7 +420,8 @@ class BillingOperation
         string $paymentMethod = 'cash',
         string $notes = '',
         ?int $cashierId = 1,
-        ?float $cogsCost = null
+        ?float $cogsCost = null,
+        bool $isDebtInstallment = false
     ): array {
         $pdo = getDBConnection();
         AccountingOperation::seedChartOfAccountsIfEmpty();
@@ -381,6 +443,19 @@ class BillingOperation
         $newDueTotal      = max(0.00, round($netTotal - $newPaidTotal, 2));
 
         $newStatus = ($newDueTotal <= 0.00) ? 'paid' : (($newPaidTotal > 0.00 || $paymentMethod === 'credit') ? 'partial' : 'pending');
+
+        // Check if this invoice already had initial revenue/AR accrual
+        $hasInitialAccrual = ($currentPaid > 0.00) || !empty($invoice['paid_at']);
+        if (!$hasInitialAccrual) {
+            $stmtCheckJe = $pdo->prepare("
+                SELECT COUNT(*) 
+                FROM journal_entries 
+                WHERE reference_type IN ('consultation_fee', 'lab_fee', 'pharmacy_sale', 'patient_billing', 'patient_debt_payment') 
+                  AND reference_id = ?
+            ");
+            $stmtCheckJe->execute([$invoiceId]);
+            $hasInitialAccrual = ((int)$stmtCheckJe->fetchColumn() > 0);
+        }
 
         $ownsTransaction = false;
         if (!$pdo->inTransaction()) {
@@ -409,8 +484,37 @@ class BillingOperation
                 ':id'     => $invoiceId,
             ]);
 
-            // 2. If Consultation Invoice, update queue billing status when paid/settled
-            if (!empty($invoice['queue_id']) && ($newStatus === 'paid' || $newStatus === 'partial' || $effectivePayment > 0.0 || $paymentMethod === 'credit')) {
+            // 1b. Record installment row in invoice_payments table (Running Balance Ledger)
+            // ONLY record if this is a subsequent debt collection / installment
+            $receiptNumber = null;
+            $previousBalance = $currentDue;
+            $remainingBalance = $newDueTotal;
+
+            if ($effectivePayment > 0.00 && $isDebtInstallment) {
+                self::ensureInvoicePaymentsTable();
+                $receiptNumber = self::generateReceiptNumber();
+
+                $stmtInsertPay = $pdo->prepare("
+                    INSERT INTO invoice_payments 
+                        (invoice_id, patient_id, receipt_number, previous_balance, amount_paid, remaining_balance, payment_method, received_by, notes, paid_at)
+                    VALUES 
+                        (:invoice_id, :patient_id, :receipt_number, :prev_bal, :amount_paid, :rem_bal, :method, :received_by, :notes, NOW())
+                ");
+                $stmtInsertPay->execute([
+                    ':invoice_id'      => $invoiceId,
+                    ':patient_id'     => !empty($invoice['patient_id']) ? (int)$invoice['patient_id'] : null,
+                    ':receipt_number' => $receiptNumber,
+                    ':prev_bal'       => $previousBalance,
+                    ':amount_paid'    => $effectivePayment,
+                    ':rem_bal'        => $remainingBalance,
+                    ':method'         => in_array($paymentMethod, ['cash', 'mobile', 'card', 'bank', 'insurance', 'credit']) ? $paymentMethod : 'cash',
+                    ':received_by'    => $cashierId ?: 1,
+                    ':notes'          => $notes ?: 'Patient debt installment collection',
+                ]);
+            }
+
+            // 2. If Consultation Invoice, update queue billing status when checkout is confirmed by cashier
+            if (!empty($invoice['queue_id'])) {
                 $pdo->prepare("
                     UPDATE patient_queues 
                     SET billing_status = 'paid' 
@@ -438,22 +542,6 @@ class BillingOperation
                 default        => '1010', // Cash on Hand (Khasnadda)
             };
             $cashAcc = AccountingOperation::getAccountByCode($assetAccountCode);
-
-            // Triple-layer check to ensure revenue is NEVER accrued more than once:
-            // Layer 1: Has any payment already been recorded on this invoice?
-            // Layer 2: Has this invoice already been settled/processed previously (paid_at timestamp set)?
-            // Layer 3: Does journal_entries already contain an entry for this invoice?
-            $hasInitialAccrual = ($currentPaid > 0.00) || !empty($invoice['paid_at']);
-            if (!$hasInitialAccrual) {
-                $stmtCheckJe = $pdo->prepare("
-                    SELECT COUNT(*) 
-                    FROM journal_entries 
-                    WHERE reference_type IN ('consultation_fee', 'lab_fee', 'pharmacy_sale', 'patient_billing', 'patient_debt_payment') 
-                      AND reference_id = ?
-                ");
-                $stmtCheckJe->execute([$invoiceId]);
-                $hasInitialAccrual = ((int)$stmtCheckJe->fetchColumn() > 0);
-            }
 
             if (!$hasInitialAccrual) {
                 // --- INITIAL INVOICE SETTLEMENT (OPTION A FULL ACCRUAL) ---
@@ -596,11 +684,13 @@ class BillingOperation
             }
 
             return [
-                'invoice_id'     => $invoiceId,
-                'invoice_number' => $invoice['invoice_number'],
-                'amount_paid'    => $effectivePayment,
-                'remaining_due'  => $newDueTotal,
-                'status'         => $newStatus,
+                'invoice_id'        => $invoiceId,
+                'invoice_number'    => $invoice['invoice_number'],
+                'receipt_number'    => $receiptNumber ?? null,
+                'previous_balance'  => $previousBalance ?? $currentDue,
+                'amount_paid'       => $effectivePayment,
+                'remaining_due'     => $newDueTotal,
+                'status'            => $newStatus,
             ];
 
         } catch (Exception $e) {

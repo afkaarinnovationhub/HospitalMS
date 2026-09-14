@@ -63,6 +63,11 @@ $recentExpenses = AccountingOperation::getExpenses(date('Y-m-01'), date('Y-m-d')
 $expenseAccounts = AccountingOperation::getAllAccounts('expense');
 $liquidAccounts = AccountingOperation::getLiquidMoneyAccounts();
 $recentTransfers = AccountingOperation::getAccountTransfers(null, null, 10);
+$disbursementBalances = [
+    'cash'   => AccountingOperation::getAccountBalanceByCode('1010'),
+    'mobile' => AccountingOperation::getAccountBalanceByCode('1020'),
+    'bank'   => AccountingOperation::getAccountBalanceByCode('1030'),
+];
 
 $pageTitle = 'Accounting & Finance Dashboard - ' . HOSPITAL_NAME;
 $headerTitle = HOSPITAL_NAME . ' - Accounting & Finance';
@@ -511,16 +516,28 @@ include __DIR__ . '/../components/header.php';
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                     <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Amount ($ USD) *</label>
-                    <input name="amount" type="number" step="0.01" min="0.01" required placeholder="0.00" class="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2 text-xs text-on-surface font-bold focus:border-primary outline-none">
+                    <input name="amount" id="dash-expense-amount-input" type="number" step="0.01" min="0.01" required oninput="validateDashExpenseFunds()" placeholder="0.00" class="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2 text-xs text-on-surface font-bold focus:border-primary outline-none text-base">
                 </div>
                 <div>
                     <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Payment Method *</label>
-                    <select name="payment_method" required class="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2 text-xs text-on-surface focus:border-primary outline-none">
-                        <option value="cash">Cash on Hand (Khasnad)</option>
-                        <option value="mobile">Mobile Money (Zaad / EVC)</option>
-                        <option value="bank">Bank Account</option>
+                    <select name="payment_method" id="dash-expense-payment-method" required onchange="validateDashExpenseFunds()" class="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2 text-xs text-on-surface focus:border-primary outline-none">
+                        <option value="cash" data-balance="<?php echo $disbursementBalances['cash']; ?>">
+                            Cash on Hand (1010) — $<?php echo number_format($disbursementBalances['cash'], 2); ?>
+                        </option>
+                        <option value="mobile" data-balance="<?php echo $disbursementBalances['mobile']; ?>">
+                            Mobile Money (1020) — $<?php echo number_format($disbursementBalances['mobile'], 2); ?>
+                        </option>
+                        <option value="bank" data-balance="<?php echo $disbursementBalances['bank']; ?>">
+                            Bank Account (1030) — $<?php echo number_format($disbursementBalances['bank'], 2); ?>
+                        </option>
                     </select>
                 </div>
+            </div>
+
+            <!-- Insufficient Funds Realtime Warning Banner -->
+            <div id="dash-expense-funds-warning" class="hidden p-3 rounded-xl bg-error-container/70 border border-error/40 text-on-error-container text-xs flex items-center gap-2">
+                <span class="material-symbols-outlined text-error text-[18px] shrink-0">warning</span>
+                <span id="dash-expense-funds-warning-text">Insufficient funds in selected account!</span>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -543,7 +560,7 @@ include __DIR__ . '/../components/header.php';
                 <button type="button" onclick="closeExpenseModal()" class="px-3 py-2 bg-surface-container text-on-surface rounded-lg text-xs font-semibold hover:bg-surface-container-high cursor-pointer">
                     Cancel
                 </button>
-                <button type="submit" class="px-4 py-2 bg-primary text-on-primary rounded-lg text-xs font-bold hover:bg-primary-container shadow-xs cursor-pointer">
+                <button type="submit" id="dash-expense-submit-btn" class="px-4 py-2 bg-primary text-on-primary rounded-lg text-xs font-bold hover:bg-primary-container shadow-xs cursor-pointer transition-all">
                     Record &amp; Post Entry
                 </button>
             </div>
@@ -786,9 +803,40 @@ include __DIR__ . '/../components/header.php';
 <script>
     function openExpenseModal() {
         document.getElementById('record-expense-modal').classList.remove('hidden');
+        validateDashExpenseFunds();
     }
     function closeExpenseModal() {
         document.getElementById('record-expense-modal').classList.add('hidden');
+    }
+
+    function validateDashExpenseFunds() {
+        const amtInput = document.getElementById('dash-expense-amount-input');
+        const methodSelect = document.getElementById('dash-expense-payment-method');
+        const warningBox = document.getElementById('dash-expense-funds-warning');
+        const warningText = document.getElementById('dash-expense-funds-warning-text');
+        const submitBtn = document.getElementById('dash-expense-submit-btn');
+
+        if (!amtInput || !methodSelect) return;
+
+        const amt = parseFloat(amtInput.value || 0);
+        const selOpt = methodSelect.options[methodSelect.selectedIndex];
+        const avail = parseFloat(selOpt.getAttribute('data-balance') || 0);
+        const accName = selOpt.textContent.trim().split('—')[0].trim();
+
+        if (amt > 0 && amt > avail) {
+            warningText.textContent = `Lacag kugu filan kuma jirto ${accName}! Waxaa ku jirta $${avail.toFixed(2)}, waxaadna doonaysaa $${amt.toFixed(2)}.`;
+            warningBox.classList.remove('hidden');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.classList.add('opacity-40', 'cursor-not-allowed');
+            }
+        } else {
+            warningBox.classList.add('hidden');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+            }
+        }
     }
     function openCreateAccountModal() {
         document.getElementById('create-account-modal').classList.remove('hidden');

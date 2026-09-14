@@ -384,11 +384,15 @@ class PharmacyOperation
                 error_log('[HPMS PHARMACY BILLING SYNC ERROR] ' . $e->getMessage());
             }
 
-            $pdo->commit();
+            if ($pdo->inTransaction()) {
+                $pdo->commit();
+            }
             return $saleId;
 
         } catch (Exception $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             error_log('[HPMS DISPENSE ERROR] ' . $e->getMessage());
             throw $e;
         }
@@ -472,6 +476,69 @@ class PharmacyOperation
                 $paymentStatus = 'credit';
             }
 
+            // 2.1 Resolve or Auto-Register Patient for Credit Debt Tracking
+            $patientId = !empty($saleData['patient_id']) ? (int)$saleData['patient_id'] : null;
+
+            if ($patientId > 0) {
+                $stmtP = $pdo->prepare("SELECT first_name, last_name, phone, mrn FROM patients WHERE id = ?");
+                $stmtP->execute([$patientId]);
+                $pRow = $stmtP->fetch(PDO::FETCH_ASSOC);
+                if ($pRow) {
+                    $pFullName = trim(($pRow['first_name'] ?? '') . ' ' . ($pRow['last_name'] ?? ''));
+                    if (empty($customerName) || strtolower($customerName) === 'walk-in customer') {
+                        $customerName = $pFullName;
+                    }
+                    if (empty($customerPhone)) {
+                        $customerPhone = $pRow['phone'] ?? '';
+                    }
+                }
+            } elseif ($dueAmount > 0.005) {
+                // Customer is taking debt: auto-resolve by phone or auto-register so debt can be tracked and found later
+                if (!empty($customerPhone)) {
+                    $stmtFind = $pdo->prepare("SELECT id, first_name, last_name FROM patients WHERE phone = ? LIMIT 1");
+                    $stmtFind->execute([$customerPhone]);
+                    $foundP = $stmtFind->fetch(PDO::FETCH_ASSOC);
+                    if ($foundP) {
+                        $patientId = (int)$foundP['id'];
+                        if (empty($customerName) || strtolower($customerName) === 'walk-in customer') {
+                            $customerName = trim(($foundP['first_name'] ?? '') . ' ' . ($foundP['last_name'] ?? ''));
+                        }
+                    }
+                }
+
+                if (!$patientId) {
+                    require_once __DIR__ . '/PatientOperation.php';
+                    $trimmedName = trim((string)$customerName);
+                    if (empty($trimmedName) || strtolower($trimmedName) === 'walk-in customer') {
+                        if (!empty($customerPhone)) {
+                            $firstName = 'Walk-in';
+                            $lastName  = $customerPhone;
+                        } else {
+                            $firstName = 'Walk-in';
+                            $lastName  = 'Debtor';
+                        }
+                    } else {
+                        $nameParts = preg_split('/\s+/', $trimmedName, 2);
+                        $firstName = !empty($nameParts[0]) ? $nameParts[0] : 'Walk-in';
+                        $lastName  = !empty($nameParts[1]) ? $nameParts[1] : 'Debtor';
+                    }
+
+                    $resolvedPhone = !empty($customerPhone) ? $customerPhone : ('252-' . random_int(1000000, 9999999));
+
+                    $patientId = PatientOperation::registerPatient([
+                        'first_name'    => $firstName,
+                        'last_name'     => $lastName,
+                        'phone'         => $resolvedPhone,
+                        'gender'        => 'other',
+                        'address'       => 'Walk-in OTC Debtor',
+                        'registered_by' => $cashierId,
+                    ]);
+
+                    $customerName = trim($firstName . ' ' . $lastName);
+                    $customerPhone = $resolvedPhone;
+                }
+            }
+
             // 3. Generate POS Invoice / Sale Reference Number
             $invoiceNumber = 'POS-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -5));
 
@@ -489,20 +556,21 @@ class PharmacyOperation
 
             // 5. Create Sale Record
             $stmtSale = $pdo->prepare("
-                INSERT INTO pharmacy_sales (invoice_number, sale_type, customer_name, customer_phone, total_amount, discount_amount, net_amount, paid_amount, due_amount, payment_status, cashier_id)
-                VALUES (:inv, 'walk_in', :cust_name, :phone, :total, :discount, :net, :paid, :due, :status, :cashier)
+                INSERT INTO pharmacy_sales (invoice_number, sale_type, patient_id, customer_name, customer_phone, total_amount, discount_amount, net_amount, paid_amount, due_amount, payment_status, cashier_id)
+                VALUES (:inv, 'walk_in', :patient_id, :cust_name, :phone, :total, :discount, :net, :paid, :due, :status, :cashier)
             ");
             $stmtSale->execute([
-                ':inv'       => $invoiceNumber,
-                ':cust_name' => $customerName ?: 'Walk-in Customer',
-                ':phone'     => $customerPhone,
-                ':total'     => $totalAmount,
-                ':discount'  => $discountAmount,
-                ':net'       => $netAmount,
-                ':paid'      => $paidAmount,
-                ':due'       => $dueAmount,
-                ':status'    => $paymentStatus,
-                ':cashier'   => $cashierId,
+                ':inv'        => $invoiceNumber,
+                ':patient_id' => $patientId,
+                ':cust_name'  => $customerName ?: 'Walk-in Customer',
+                ':phone'      => $customerPhone,
+                ':total'      => $totalAmount,
+                ':discount'   => $discountAmount,
+                ':net'        => $netAmount,
+                ':paid'       => $paidAmount,
+                ':due'        => $dueAmount,
+                ':status'     => $paymentStatus,
+                ':cashier'    => $cashierId,
             ]);
             $saleId = (int)$pdo->lastInsertId();
 
@@ -539,19 +607,20 @@ class PharmacyOperation
             require_once __DIR__ . '/BillingOperation.php';
             try {
                 $stmtInv = $pdo->prepare("
-                    INSERT INTO invoices (invoice_number, bill_type, customer_name, customer_phone, subtotal, discount, net_total, paid_amount, due_amount, payment_method, payment_status, cashier_id, paid_at)
-                    VALUES (:inv, 'walk_in', :cust, :phone, :sub, :disc, :net, 0.00, :due, :method, 'pending', :cashier, NULL)
+                    INSERT INTO invoices (invoice_number, bill_type, patient_id, customer_name, customer_phone, subtotal, discount, net_total, paid_amount, due_amount, payment_method, payment_status, cashier_id, paid_at)
+                    VALUES (:inv, 'pharmacy', :patient_id, :cust, :phone, :sub, :disc, :net, 0.00, :due, :method, 'pending', :cashier, NULL)
                 ");
                 $stmtInv->execute([
-                    ':inv'     => $invoiceNumber,
-                    ':cust'    => $customerName ?: 'Walk-in Customer',
-                    ':phone'   => $customerPhone,
-                    ':sub'     => $totalAmount,
-                    ':disc'    => $discountAmount,
-                    ':net'     => $netAmount,
-                    ':due'     => $netAmount,
-                    ':method'  => $paymentMethod,
-                    ':cashier' => $cashierId,
+                    ':inv'        => $invoiceNumber,
+                    ':patient_id' => $patientId,
+                    ':cust'       => $customerName ?: 'Walk-in Customer',
+                    ':phone'      => $customerPhone,
+                    ':sub'        => $totalAmount,
+                    ':disc'       => $discountAmount,
+                    ':net'        => $netAmount,
+                    ':due'        => $netAmount,
+                    ':method'     => $paymentMethod,
+                    ':cashier'    => $cashierId,
                 ]);
                 $invoiceId = (int)$pdo->lastInsertId();
 
@@ -584,11 +653,15 @@ class PharmacyOperation
                 error_log('[HPMS POS INVOICE & GL SYNC ERROR] ' . $e->getMessage());
             }
 
-            $pdo->commit();
+            if ($pdo->inTransaction()) {
+                $pdo->commit();
+            }
             return $saleId;
 
         } catch (Exception $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             error_log('[HPMS POS ERROR] ' . $e->getMessage());
             throw $e;
         }
@@ -747,11 +820,15 @@ class PharmacyOperation
                 error_log('[HPMS COLLECT DEBT GL ERROR] ' . $e->getMessage());
             }
 
-            $pdo->commit();
+            if ($pdo->inTransaction()) {
+                $pdo->commit();
+            }
             return true;
 
         } catch (Exception $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             error_log('[HPMS COLLECT DEBT ERROR] ' . $e->getMessage());
             throw $e;
         }

@@ -1,0 +1,218 @@
+[
+    {
+        "id": 1,
+        "account_code": "1010",
+        "account_name": "Cash on Hand (Khasnadda/Khaanadda)",
+        "account_type": "asset",
+        "category": "current_asset",
+        "description": "Physical cash in drawer/vault from daily patient payments",
+        "is_active": 1
+    },
+    {
+        "id": 2,
+        "account_code": "1020",
+        "account_name": "Mobile Money (EVC Plus / Zaad / Sahal)",
+        "account_type": "asset",
+        "category": "current_asset",
+        "description": "Hospital mobile money merchant accounts",
+        "is_active": 1
+    },
+    {
+        "id": 3,
+        "account_code": "1030",
+        "account_name": "Bank Account (Commercial Banks)",
+        "account_type": "asset",
+        "category": "current_asset",
+        "description": "Hospital primary bank checking & settlement accounts",
+        "is_active": 1
+    },
+    {
+        "id": 4,
+        "account_code": "1100",
+        "account_name": "Accounts Receivable - Patients (Deymaha Bukaanka)",
+        "account_type": "asset",
+        "category": "current_asset",
+        "description": "Outstanding patient dues from pharmacy dispensing & consultations",
+        "is_active": 1
+    },
+    {
+        "id": 5,
+        "account_code": "1200",
+        "account_name": "Pharmacy Inventory Asset (Qiimaha Daawada)",
+        "account_type": "asset",
+        "category": "current_asset",
+        "description": "Asset valuation of pharmaceutical medications in stock",
+        "is_active": 1
+    },
+    {
+        "id": 6,
+        "account_code": "1500",
+        "account_name": "Medical Equipment & Machinery (Qalabka)",
+        "account_type": "asset",
+        "category": "fixed_asset",
+        "description": "Clinical, diagnostic laboratory, and hospital medical apparatus",
+        "is_active": 1
+    },
+    {
+        "id": 7,
+        "account_code": "2010",
+        "account_name": "Accounts Payable - Vendors (Deymaha Shirkadaha)",
+        "account_type": "liability",
+        "category": "current_liability",
+        "description": "Outstanding amounts owed to pharmaceutical distributors and vendors",
+        "is_active": 1
+    },
+    {
+        "id": 8,
+        "account_code": "2020",
+        "account_name": "Accrued Salaries Payable (Mushaaraadka Sugaya)",
+        "account_type": "liability",
+        "category": "current_liability",
+        "description": "Accrued compensation owed to physicians and hospital staff",
+        "is_active": 1
+    },
+    {
+        "id": 9,
+        "account_code": "2030",
+        "account_name": "Accrued Utility Bills (Biilasha Baaqiga ah)",
+        "account_type": "liability",
+        "category": "current_liability",
+        "description": "Accrued electricity, water, and facility utility bills",
+        "is_active": 1
+    },
+    {
+        "id": 10,
+        "account_code": "3010",
+        "account_name": "Owner's Capital (Raasumaalka Aasaasayaasha)",
+        "account_type": "equity",
+        "category": "equity",
+        "description": "Initial paid-in capital and shareholder investments",
+        "is_active": 1
+    },
+    {
+        "id": 11,
+        "account_code": "3020",
+        "account_name": "Retained Earnings (Faa'iidada Is-urursatay)",
+        "account_type": "equity",
+        "category": "equity",
+        "description": "Accumulated net earnings from prior operating periods",
+        "is_active": 1
+    },
+    {
+        "id": 12,
+        "account_code": "4010",
+        "account_name": "Pharmacy Sales Revenue (Dakhliga Daawada)",
+        "account_type": "revenue",
+        "category": "operating_revenue",
+        "description": "Gross revenue earned from dispensed and walk-in pharmaceutical sales",
+        "is_active": 1
+    },
+    {
+        "id": 13,
+        "account_code": "4020",
+        "account_name": "Consultation Fees Revenue (Dakhliga Dhakhaatiirta)",
+        "account_type": "revenue",
+        "category": "operating_revenue",
+        "description": "Revenue earned from clinical consultations and outpatient visits",
+        "is_active": 1
+    },
+    {
+        "id": 14,
+        "account_code": "4030",
+        "account_name": "Laboratory & Diagnostics Revenue (Dakhliga Shaybaarka)",
+        "account_type": "revenue",
+        "category": "operating_revenue",
+        "description": "Revenue earned from medical diagnostic laboratory tests",
+        "is_active": 1
+    },
+    {
+        "id": 15,
+        "account_code": "4090",
+        "account_name": "Other Operating Income (Dakhliyo Kale)",
+        "account_type": "revenue",
+        "category": "other_revenue",
+        "description": "Incidental and miscellaneous clinical service revenue",
+        "is_active": 1
+    },
+    {
+        "id": 16,
+        "account_code": "5010",
+        "account_name": "Cost of Dispensed Medications (COGS Daawada)",
+        "account_type": "cogs",
+        "category": "direct_cost",
+        "description": "Original cost of stock units dispensed to patients",
+        "is_active": 1
+    },
+    {
+        "id": 17,
+        "account_code": "6010",
+        "account_name": "Staff Salaries & Doctor Compensation",
+        "account_type": "expense",
+        "category": "operating_expense",
+        "description": "Physician fees, nursing payroll, and administrative compensation",
+        "is_active": 1
+    },
+    {
+        "id": 18,
+        "account_code": "6020",
+        "account_name": "Hospital Facility Rent Expense",
+        "account_type": "expense",
+        "category": "operating_expense",
+        "description": "Building and clinical premises rental lease payments",
+        "is_active": 1
+    },
+    {
+        "id": 19,
+        "account_code": "6030",
+        "account_name": "Electricity, Water & Generator Utilities",
+        "account_type": "expense",
+        "category": "operating_expense",
+        "description": "Utility power grid bills, clean water supply, and generator fuel",
+        "is_active": 1
+    },
+    {
+        "id": 20,
+        "account_code": "6040",
+        "account_name": "Medical & Surgical Consumable Supplies",
+        "account_type": "expense",
+        "category": "operating_expense",
+        "description": "Single-use PPE gloves, syringes, sterile dressings, and disinfectants",
+        "is_active": 1
+    },
+    {
+        "id": 21,
+        "account_code": "6050",
+        "account_name": "Facility & Medical Equipment Repairs",
+        "account_type": "expense",
+        "category": "operating_expense",
+        "description": "Maintenance and repairs of hospital machinery and building",
+        "is_active": 1
+    },
+    {
+        "id": 22,
+        "account_code": "6060",
+        "account_name": "Internet, Telephony & Software Subscriptions",
+        "account_type": "expense",
+        "category": "operating_expense",
+        "description": "Telecom connectivity, hospital broadband, and software systems",
+        "is_active": 1
+    },
+    {
+        "id": 33,
+        "account_code": "6080",
+        "account_name": "Inventory Adjustment & Shrinkage Loss (Dhimista Daawada)",
+        "account_type": "expense",
+        "category": "operating_expense",
+        "description": "Losses, discrepancies, or write-offs identified during physical stock counts or damaged/expired medications",
+        "is_active": 1
+    },
+    {
+        "id": 23,
+        "account_code": "6090",
+        "account_name": "Miscellaneous & Administrative Expenses",
+        "account_type": "expense",
+        "category": "operating_expense",
+        "description": "General hospital administrative and incidental operating expenditures",
+        "is_active": 1
+    }
+]

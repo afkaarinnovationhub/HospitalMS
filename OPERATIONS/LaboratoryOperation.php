@@ -18,17 +18,33 @@ class LaboratoryOperation
      */
     public static function seedLabCategoriesIfEmpty(): void
     {
+        static $ensured = false;
+        if ($ensured) {
+            return;
+        }
         $pdo = getDBConnection();
-        // Ensure table exists
-        $pdo->exec("
-            CREATE TABLE IF NOT EXISTS `lab_categories` (
-                `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                `name` VARCHAR(100) NOT NULL UNIQUE,
-                `description` VARCHAR(255) NULL,
-                `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-                INDEX `idx_lab_cat_name` (`name`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        ");
+        try {
+            $check = $pdo->query("SELECT 1 FROM `lab_categories` LIMIT 1");
+            if ($check !== false) {
+                $ensured = true;
+                return;
+            }
+        } catch (Throwable $e) {
+            // Table doesn't exist yet
+        }
+
+        if (!$pdo->inTransaction()) {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `lab_categories` (
+                    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    `name` VARCHAR(100) NOT NULL UNIQUE,
+                    `description` VARCHAR(255) NULL,
+                    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    INDEX `idx_lab_cat_name` (`name`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+            $ensured = true;
+        }
     }
 
     /**

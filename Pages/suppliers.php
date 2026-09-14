@@ -216,7 +216,6 @@ include __DIR__ . '/../components/header.php';
                             <td colspan="10" class="py-10 text-center text-on-surface-variant">
                                 <span class="material-symbols-outlined text-[36px] text-secondary block mb-2">domain_disabled</span>
                                 <p class="font-bold text-sm text-on-surface">No suppliers match your search query.</p>
-                                <p class="text-xs text-on-surface-variant mt-1">Register a new vendor or clear current filter criteria.</p>
                                 <button type="button" onclick="openAddSupplierModal()" class="mt-4 px-4 py-2 bg-primary text-on-primary rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-xs cursor-pointer">
                                     <span class="material-symbols-outlined text-[16px]">domain_add</span>
                                     Register First Supplier

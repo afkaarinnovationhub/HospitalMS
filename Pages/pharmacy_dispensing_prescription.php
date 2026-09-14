@@ -441,15 +441,65 @@ include __DIR__ . '/../components/header.php';
             <?php echo csrfField(); ?>
             <input type="hidden" name="action" value="walk_in_sale">
 
-            <!-- Customer Identity -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-surface-container-lowest rounded-xl border border-outline-variant">
+            <!-- Hidden Patient ID if selected from directory -->
+            <input type="hidden" name="patient_id" id="pos-patient-id" value="">
+
+            <!-- Customer Identity & Patient Search (Matching Reception UX) -->
+            <div class="p-3.5 bg-surface-container-lowest rounded-xl border border-outline-variant space-y-3">
+                <!-- Patient Live Search Bar -->
                 <div>
-                    <label class="block font-semibold text-xs text-on-surface mb-1">Customer Name</label>
-                    <input name="customer_name" class="w-full bg-surface border border-outline-variant rounded p-2 text-xs text-on-surface" placeholder="e.g. Ahmed Warsame" type="text">
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block font-bold text-xs text-primary flex items-center gap-1.5">
+                            <span class="material-symbols-outlined text-[17px]">person_search</span>
+                            Baar Bukaan Hore / Registered Patient (Sida Reception-ka)
+                        </label>
+                        <span class="text-[10px] text-on-surface-variant font-medium">Magac, Taleefan, ama MRN</span>
+                    </div>
+                    <div class="relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[18px] pointer-events-none">search</span>
+                        <input type="text" 
+                               id="pos-patient-search" 
+                               name="patient_search_query"
+                               oninput="handlePosPatientSearch(this.value)" 
+                               placeholder="Qor magaca bukaanka, taleefankiisa ama MRN si aad u doorato..." 
+                               autocomplete="off" 
+                               class="w-full pl-9 pr-8 py-2 bg-surface border border-outline-variant rounded-lg text-xs text-on-surface focus:border-primary outline-none shadow-xs">
+                        <button type="button" id="clear-pos-search" onclick="clearPosPatientSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-0.5 rounded cursor-pointer">
+                            <span class="material-symbols-outlined text-[16px]">close</span>
+                        </button>
+                        <!-- Autocomplete Dropdown -->
+                        <div id="pos-search-results" class="hidden absolute z-30 left-0 right-0 top-full mt-1 bg-surface border border-outline-variant rounded-xl shadow-2xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar divide-y divide-outline-variant/60"></div>
+                    </div>
                 </div>
-                <div>
-                    <label class="block font-semibold text-xs text-on-surface mb-1">Customer Phone (Required if Debt / Partial)</label>
-                    <input name="customer_phone" class="w-full bg-surface border border-outline-variant rounded p-2 text-xs text-on-surface" placeholder="e.g. (555) 012-9900" type="text">
+
+                <!-- Selected Patient Notification Pill / Card -->
+                <div id="pos-selected-patient-card" class="hidden p-2.5 rounded-lg border border-primary/40 bg-primary-fixed/20 flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="material-symbols-outlined text-primary text-[20px] shrink-0">account_circle</span>
+                        <div class="min-w-0 text-xs">
+                            <span class="font-bold text-on-surface" id="pos-card-patient-name">--</span>
+                            <span id="pos-card-patient-mrn" class="font-mono text-[10px] font-bold bg-primary text-on-primary px-1.5 py-0.2 rounded ml-1">--</span>
+                            <span id="pos-card-patient-debt-badge" class="hidden text-[10px] font-bold text-error bg-error-container text-on-error-container px-2 py-0.5 rounded ml-1.5 inline-flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[13px]">warning</span>
+                                Deynta ku maqan: <span id="pos-card-patient-debt-val" class="font-mono font-bold">$0.00</span>
+                            </span>
+                        </div>
+                    </div>
+                    <button type="button" onclick="clearPosSelectedPatient()" class="text-[10px] font-bold text-error hover:bg-error/10 px-2 py-0.5 rounded border border-error/30 cursor-pointer shrink-0">
+                        Ka saar / Beddel
+                    </button>
+                </div>
+
+                <!-- Customer Name & Phone (Auto-filled if patient selected, or filled manually for new customer) -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-outline-variant/40">
+                    <div>
+                        <label class="block font-semibold text-xs text-on-surface mb-1">Customer / Patient Name</label>
+                        <input id="pos_customer_name" name="customer_name" class="w-full bg-surface border border-outline-variant rounded p-2 text-xs text-on-surface focus:border-primary outline-none" placeholder="e.g. Ahmed Warsame" type="text">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-xs text-on-surface mb-1">Customer Phone (Required if Debt / Partial)</label>
+                        <input id="pos_customer_phone" name="customer_phone" class="w-full bg-surface border border-outline-variant rounded p-2 text-xs text-on-surface focus:border-primary outline-none" placeholder="e.g. (555) 012-9900" type="text">
+                    </div>
                 </div>
             </div>
 
@@ -615,7 +665,188 @@ include __DIR__ . '/../components/header.php';
     }
     function closeWalkInModal() {
         document.getElementById('walkin-modal').classList.add('hidden');
+        clearPosPatientSearch();
     }
+
+    // =========================================================================
+    // POS PATIENT LIVE SEARCH & AUTOCOMPLETE HANDLERS (Matching Reception UX)
+    // =========================================================================
+    let posSearchTimeout = null;
+    let posSearchResultsMap = {};
+
+    function handlePosPatientSearch(val) {
+        const trimmed = (val || '').trim();
+        const clearBtn = document.getElementById('clear-pos-search');
+        const resultsBox = document.getElementById('pos-search-results');
+        const selectedPid = document.getElementById('pos-patient-id')?.value;
+
+        // Auto-sync into customer name input if user is typing a new customer and no existing patient is locked
+        if (!selectedPid) {
+            const nameInput = document.getElementById('pos_customer_name');
+            if (nameInput) {
+                nameInput.value = val;
+            }
+        }
+
+        if (clearBtn) {
+            clearBtn.classList.toggle('hidden', trimmed.length === 0);
+        }
+
+        if (trimmed.length === 0) {
+            if (resultsBox) {
+                resultsBox.classList.add('hidden');
+                resultsBox.innerHTML = '';
+            }
+            return;
+        }
+
+        clearTimeout(posSearchTimeout);
+        posSearchTimeout = setTimeout(() => {
+            fetch('../api/live_sync.php?module=search_patients&q=' + encodeURIComponent(trimmed))
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.status === 'success') {
+                        renderPosSearchResults(data.patients || []);
+                    } else {
+                        renderPosSearchResults([]);
+                    }
+                })
+                .catch(err => {
+                    console.error('[POS PATIENT SEARCH ERROR]', err);
+                    renderPosSearchResults([]);
+                });
+        }, 200);
+    }
+
+    function renderPosSearchResults(patients) {
+        const resultsBox = document.getElementById('pos-search-results');
+        if (!resultsBox) return;
+
+        if (!patients || patients.length === 0) {
+            resultsBox.innerHTML = `
+                <div class="p-3 text-center text-on-surface-variant text-xs space-y-0.5">
+                    <span class="material-symbols-outlined text-outline text-[20px]">person_off</span>
+                    <p class="font-semibold">Bukaan lama helin. Geli magaca iyo taleefanka hoose si cusub loogu diiwaangeliyo.</p>
+                </div>
+            `;
+            resultsBox.classList.remove('hidden');
+            return;
+        }
+
+        posSearchResultsMap = {};
+        patients.forEach(p => { posSearchResultsMap[p.id] = p; });
+
+        let html = '';
+        patients.forEach(p => {
+            const fullName = p.full_name || (p.first_name + ' ' + p.last_name);
+            const mrn = p.mrn || '';
+            const phone = p.phone || 'No phone';
+            const curDebt = parseFloat(p.current_debt || 0);
+            const debtBadge = curDebt > 0.005 
+                ? `<span class="inline-flex items-center gap-0.5 text-[10px] font-bold text-error bg-error/15 px-2 py-0.5 rounded font-mono"><span class="material-symbols-outlined text-[12px]">warning</span> Deyn: $${curDebt.toFixed(2)}</span>` 
+                : `<span class="text-[10px] font-semibold text-secondary bg-secondary/10 px-2 py-0.5 rounded">Debt Free</span>`;
+            const initial = (fullName.trim().charAt(0) || 'P').toUpperCase();
+
+            html += `
+                <div onclick="selectPosPatient(${p.id})" class="p-2.5 hover:bg-primary-fixed/20 transition-colors cursor-pointer flex items-center justify-between gap-2 group">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-7 h-7 rounded-full bg-primary text-on-primary font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                            ${initial}
+                        </div>
+                        <div class="min-w-0 text-xs">
+                            <div class="font-bold text-on-surface truncate group-hover:text-primary transition-colors">${escapeHtml(fullName)}</div>
+                            <div class="text-[10px] text-on-surface-variant font-mono">MRN: ${escapeHtml(mrn)} • Tel: ${escapeHtml(phone)}</div>
+                        </div>
+                    </div>
+                    <div class="text-right shrink-0">
+                        ${debtBadge}
+                    </div>
+                </div>
+            `;
+        });
+
+        resultsBox.innerHTML = html;
+        resultsBox.classList.remove('hidden');
+    }
+
+    function selectPosPatient(patientId) {
+        const p = posSearchResultsMap[patientId];
+        if (!p) return;
+
+        document.getElementById('pos-patient-id').value = p.id;
+        const nameVal = p.full_name || (p.first_name + ' ' + p.last_name);
+        document.getElementById('pos_customer_name').value = nameVal;
+        document.getElementById('pos_customer_phone').value = p.phone || '';
+
+        // Populate Selected Card
+        document.getElementById('pos-card-patient-name').textContent = nameVal;
+        document.getElementById('pos-card-patient-mrn').textContent = p.mrn || 'N/A';
+
+        const curDebt = parseFloat(p.current_debt || 0);
+        const debtBadge = document.getElementById('pos-card-patient-debt-badge');
+        const debtVal = document.getElementById('pos-card-patient-debt-val');
+        if (curDebt > 0.005) {
+            debtVal.textContent = '$' + curDebt.toFixed(2);
+            debtBadge.classList.remove('hidden');
+        } else {
+            debtBadge.classList.add('hidden');
+        }
+
+        document.getElementById('pos-selected-patient-card').classList.remove('hidden');
+        clearPosPatientSearch();
+    }
+
+    function clearPosSelectedPatient() {
+        document.getElementById('pos-patient-id').value = '';
+        document.getElementById('pos_customer_name').value = '';
+        document.getElementById('pos_customer_phone').value = '';
+        document.getElementById('pos-selected-patient-card').classList.add('hidden');
+        const sInput = document.getElementById('pos-patient-search');
+        if (sInput) {
+            sInput.value = '';
+            sInput.focus();
+        }
+        const clearBtn = document.getElementById('clear-pos-search');
+        if (clearBtn) clearBtn.classList.add('hidden');
+        const resultsBox = document.getElementById('pos-search-results');
+        if (resultsBox) {
+            resultsBox.classList.add('hidden');
+            resultsBox.innerHTML = '';
+        }
+    }
+
+    function clearPosPatientSearch() {
+        const input = document.getElementById('pos-patient-search');
+        if (input) input.value = '';
+        const clearBtn = document.getElementById('clear-pos-search');
+        if (clearBtn) clearBtn.classList.add('hidden');
+        const resultsBox = document.getElementById('pos-search-results');
+        if (resultsBox) {
+            resultsBox.classList.add('hidden');
+            resultsBox.innerHTML = '';
+        }
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    // Close search dropdown on outside click
+    document.addEventListener('click', function(e) {
+        const searchInput = document.getElementById('pos-patient-search');
+        const resultsBox = document.getElementById('pos-search-results');
+        if (resultsBox && !resultsBox.classList.contains('hidden')) {
+            if (searchInput && !searchInput.contains(e.target) && !resultsBox.contains(e.target)) {
+                resultsBox.classList.add('hidden');
+            }
+        }
+    });
     function openPatientDebtModal() {
         document.getElementById('patient-debt-modal').classList.remove('hidden');
     }
@@ -766,14 +997,25 @@ include __DIR__ . '/../components/header.php';
             const due = Math.max(0, net - paid);
             document.getElementById('pos-due').value = '$' + due.toFixed(2);
 
-            const phoneInput = document.querySelector('input[name="customer_phone"]');
-            if (phoneInput) {
-                if (due > 0) {
+            const phoneInput = document.getElementById('pos_customer_phone');
+            const nameInput = document.getElementById('pos_customer_name');
+            if (due > 0.005) {
+                if (phoneInput) {
                     phoneInput.required = true;
                     phoneInput.classList.add('border-primary');
-                } else {
+                }
+                if (nameInput) {
+                    nameInput.required = true;
+                    nameInput.classList.add('border-primary');
+                }
+            } else {
+                if (phoneInput) {
                     phoneInput.required = false;
                     phoneInput.classList.remove('border-primary');
+                }
+                if (nameInput) {
+                    nameInput.required = false;
+                    nameInput.classList.remove('border-primary');
                 }
             }
         }
@@ -784,6 +1026,39 @@ include __DIR__ . '/../components/header.php';
         posPaidElem.addEventListener('input', function() {
             this.dataset.dirty = 'true';
             calcPosTotals();
+        });
+    }
+
+    // POS Form Validation: Ensure debtors are properly registered with Name & Phone
+    const walkInForm = document.querySelector('#walkin-modal form');
+    if (walkInForm) {
+        walkInForm.addEventListener('submit', function(e) {
+            const sVal = (document.getElementById('pos-patient-search')?.value || '').trim();
+            const nameInput = document.getElementById('pos_customer_name');
+            const phoneInput = document.getElementById('pos_customer_phone');
+            const dueVal = parseFloat((document.getElementById('pos-due')?.value || '0').replace('$', '')) || 0;
+
+            if (nameInput && !nameInput.value.trim() && sVal) {
+                nameInput.value = sVal;
+            }
+
+            if (dueVal > 0.005) {
+                const finalName = nameInput ? nameInput.value.trim() : '';
+                const finalPhone = phoneInput ? phoneInput.value.trim() : '';
+
+                if (!finalName || finalName.toLowerCase() === 'walk-in customer') {
+                    e.preventDefault();
+                    alert('Fadlan geli magaca macaamiilka/bukaanka si deynta loogu diiwaangeliyo bukaan ahaan (Customer name is required for credit sales).');
+                    if (nameInput) nameInput.focus();
+                    return false;
+                }
+                if (!finalPhone) {
+                    e.preventDefault();
+                    alert('Fadlan geli lambarka taleefanka macaamiilka si deynta loogu xiriiriyo bukaanka (Phone number is required for credit sales).');
+                    if (phoneInput) phoneInput.focus();
+                    return false;
+                }
+            }
         });
     }
 </script>

@@ -82,9 +82,6 @@ include __DIR__ . '/../components/header.php';
                     <span class="material-symbols-outlined text-primary text-[28px]">manage_accounts</span>
                     User Accounts &amp; Staff Management
                 </h2>
-                <p class="font-body-md text-xs sm:text-body-md text-on-surface-variant mt-xs">
-                    Manage system logins, assign operational roles, control active/inactive account access, and reset passwords.
-                </p>
             </div>
             <!-- Add New User Trigger Button -->
             <button type="button" onclick="openCreateUserModal()" class="w-full sm:w-auto flex items-center justify-center gap-xs px-md py-2.5 bg-primary text-on-primary font-label-md text-xs sm:text-label-md rounded-xl hover:bg-primary-container hover:text-on-primary-container transition-colors shadow-sm font-semibold cursor-pointer">

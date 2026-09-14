@@ -625,6 +625,46 @@ function initializeDatabaseTables(PDO $pdo): void
                 CONSTRAINT `fk_mpl_user` FOREIGN KEY (`changed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         ");
+
+        // 26. Invoice Running Balance Payments
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS `invoice_payments` (
+                `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `invoice_id` INT UNSIGNED NOT NULL,
+                `patient_id` INT UNSIGNED NULL,
+                `receipt_number` VARCHAR(50) NOT NULL,
+                `previous_balance` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+                `amount_paid` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+                `remaining_balance` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+                `payment_method` ENUM('cash', 'mobile', 'card', 'bank', 'insurance', 'credit') NOT NULL DEFAULT 'cash',
+                `received_by` INT UNSIGNED NOT NULL DEFAULT 1,
+                `notes` TEXT NULL,
+                `paid_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                INDEX `idx_inv_pay_inv` (`invoice_id`),
+                INDEX `idx_inv_pay_pat` (`patient_id`),
+                INDEX `idx_inv_pay_date` (`paid_at`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ");
+
+        // 27. Account Transfers
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS `account_transfers` (
+                `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `transfer_number` VARCHAR(50) NOT NULL UNIQUE,
+                `from_account_id` INT UNSIGNED NOT NULL,
+                `to_account_id` INT UNSIGNED NOT NULL,
+                `amount` DECIMAL(12,2) NOT NULL,
+                `transfer_date` DATE NOT NULL,
+                `reference_number` VARCHAR(100) NULL,
+                `notes` VARCHAR(255) NULL,
+                `journal_entry_id` INT UNSIGNED NULL,
+                `created_by` INT UNSIGNED NULL,
+                `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX `idx_from_acc` (`from_account_id`),
+                INDEX `idx_to_acc` (`to_account_id`),
+                INDEX `idx_transfer_date` (`transfer_date`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ");
     } catch (PDOException $e) {
         error_log('[HPMS TABLE INIT ERROR] ' . $e->getMessage());
     }

@@ -411,25 +411,42 @@ class AccountingOperation
      */
     public static function initTransfersTableIfNotExists(): void
     {
+        static $ensured = false;
+        if ($ensured) {
+            return;
+        }
         $pdo = getDBConnection();
-        $pdo->exec("
-            CREATE TABLE IF NOT EXISTS account_transfers (
-                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                transfer_number VARCHAR(50) NOT NULL UNIQUE,
-                from_account_id INT UNSIGNED NOT NULL,
-                to_account_id INT UNSIGNED NOT NULL,
-                amount DECIMAL(12,2) NOT NULL,
-                transfer_date DATE NOT NULL,
-                reference_number VARCHAR(100) NULL,
-                notes VARCHAR(255) NULL,
-                journal_entry_id INT UNSIGNED NULL,
-                created_by INT UNSIGNED NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_from_acc (from_account_id),
-                INDEX idx_to_acc (to_account_id),
-                INDEX idx_transfer_date (transfer_date)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        ");
+        try {
+            $check = $pdo->query("SELECT 1 FROM `account_transfers` LIMIT 1");
+            if ($check !== false) {
+                $ensured = true;
+                return;
+            }
+        } catch (Throwable $e) {
+            // Table doesn't exist yet
+        }
+
+        if (!$pdo->inTransaction()) {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS account_transfers (
+                    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    transfer_number VARCHAR(50) NOT NULL UNIQUE,
+                    from_account_id INT UNSIGNED NOT NULL,
+                    to_account_id INT UNSIGNED NOT NULL,
+                    amount DECIMAL(12,2) NOT NULL,
+                    transfer_date DATE NOT NULL,
+                    reference_number VARCHAR(100) NULL,
+                    notes VARCHAR(255) NULL,
+                    journal_entry_id INT UNSIGNED NULL,
+                    created_by INT UNSIGNED NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_from_acc (from_account_id),
+                    INDEX idx_to_acc (to_account_id),
+                    INDEX idx_transfer_date (transfer_date)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+            $ensured = true;
+        }
     }
 
     /**
@@ -458,9 +475,27 @@ class AccountingOperation
             'mobile' => '1020', // Mobile Money
             default  => '1010', // Cash on Hand
         };
+        $accountNames = [
+            '1010' => 'Cash on Hand (1010)',
+            '1020' => 'Mobile Money EVC/Zaad (1020)',
+            '1030' => 'Bank Account (1030)',
+        ];
+        $accLabel = $accountNames[$creditAccountCode] ?? "Asset Account ({$creditAccountCode})";
+
         $creditAccount = self::getAccountByCode($creditAccountCode);
         if (!$creditAccount) {
             throw new RuntimeException("Asset account {$creditAccountCode} not found in Chart of Accounts.");
+        }
+
+        // Validate available funds to prevent negative asset balances
+        $currentBal = self::getAccountBalanceByCode($creditAccountCode);
+        if ($amount > $currentBal) {
+            throw new InvalidArgumentException(sprintf(
+                'Insufficient funds in %s! Available balance: $%.2f, Required to pay: $%.2f. Please select another account with sufficient funds or deposit money first.',
+                $accLabel,
+                $currentBal,
+                $amount
+            ));
         }
 
         $expNumber = self::generateExpenseNumber();
@@ -1445,22 +1480,27 @@ class AccountingOperation
             $stmtInv->execute([$patientId]);
             $invoices = $stmtInv->fetchAll();
 
-            // Fetch Payments
+            // Fetch Installment Payments from invoice_payments (Running Balance Ledger)
             $stmtPay = $pdo->prepare("
                 SELECT 
-                    i.id,
+                    ip.id,
+                    ip.receipt_number,
                     i.invoice_number,
-                    i.paid_amount,
-                    i.payment_method,
-                    i.paid_at,
-                    i.notes,
+                    ip.invoice_id,
+                    ip.previous_balance,
+                    ip.amount_paid,
+                    ip.remaining_balance,
+                    ip.payment_method,
+                    ip.paid_at,
+                    ip.notes,
                     u.full_name as cashier_name
-                FROM invoices i
-                LEFT JOIN users u ON i.cashier_id = u.id
-                WHERE i.patient_id = ? AND i.paid_amount > 0 AND i.paid_at IS NOT NULL
-                ORDER BY i.paid_at DESC
+                FROM invoice_payments ip
+                JOIN invoices i ON ip.invoice_id = i.id
+                LEFT JOIN users u ON ip.received_by = u.id
+                WHERE ip.patient_id = ? OR i.patient_id = ?
+                ORDER BY ip.paid_at DESC, ip.id DESC
             ");
-            $stmtPay->execute([$patientId]);
+            $stmtPay->execute([$patientId, $patientId]);
             $payments = $stmtPay->fetchAll();
 
         } elseif ($invoiceId && $invoiceId > 0) {
@@ -1487,17 +1527,28 @@ class AccountingOperation
                 'type'    => 'Outpatient / Walk-in Customer',
             ];
 
-            if ((float)$inv['paid_amount'] > 0 && !empty($inv['paid_at'])) {
-                $payments = [[
-                    'id'             => $inv['id'],
-                    'invoice_number' => $inv['invoice_number'],
-                    'paid_amount'    => $inv['paid_amount'],
-                    'payment_method' => $inv['payment_method'],
-                    'paid_at'        => $inv['paid_at'],
-                    'notes'          => $inv['notes'],
-                    'cashier_name'   => $inv['cashier_name'] ?: 'Cashier',
-                ]];
-            }
+            // Fetch Installments for walk-in invoice
+            $stmtPay = $pdo->prepare("
+                SELECT 
+                    ip.id,
+                    ip.receipt_number,
+                    i.invoice_number,
+                    ip.invoice_id,
+                    ip.previous_balance,
+                    ip.amount_paid,
+                    ip.remaining_balance,
+                    ip.payment_method,
+                    ip.paid_at,
+                    ip.notes,
+                    u.full_name as cashier_name
+                FROM invoice_payments ip
+                JOIN invoices i ON ip.invoice_id = i.id
+                LEFT JOIN users u ON ip.received_by = u.id
+                WHERE ip.invoice_id = ?
+                ORDER BY ip.paid_at DESC, ip.id DESC
+            ");
+            $stmtPay->execute([$invoiceId]);
+            $payments = $stmtPay->fetchAll();
         } else {
             return null;
         }
@@ -1559,8 +1610,21 @@ class AccountingOperation
         $payables = $stmt->fetchAll();
 
         $totalPayable = 0.0;
+        $current_0_30 = 0.0;
+        $aging_31_60 = 0.0;
+        $over_60_days = 0.0;
+
         foreach ($payables as $p) {
-            $totalPayable += (float)$p['due_amount'];
+            $due = (float)$p['due_amount'];
+            $totalPayable += $due;
+            $age = (int)$p['age_days'];
+            if ($age <= 30) {
+                $current_0_30 += $due;
+            } elseif ($age <= 60) {
+                $aging_31_60 += $due;
+            } else {
+                $over_60_days += $due;
+            }
         }
 
         // Retrieve Recent Supplier Payments
@@ -1580,6 +1644,11 @@ class AccountingOperation
             'payables'        => $payables,
             'recent_payments' => $recentSupplierPayments,
             'supplier_count'  => count($payables),
+            'aging'           => [
+                'current_0_30' => $current_0_30,
+                'aging_31_60'  => $aging_31_60,
+                'over_60_days' => $over_60_days,
+            ],
         ];
     }
 
@@ -1699,7 +1768,9 @@ class AccountingOperation
                 COALESCE(SUM(i.paid_amount), 0.00) as total_paid,
                 COALESCE(SUM(i.due_amount), 0.00) as balance_due,
                 MAX(i.created_at) as last_activity,
-                MAX(i.id) as latest_invoice_id
+                MAX(i.id) as latest_invoice_id,
+                MAX(CASE WHEN i.due_amount > 0.005 THEN i.id ELSE NULL END) as latest_unpaid_invoice_id,
+                MAX(CASE WHEN i.due_amount > 0.005 THEN i.invoice_number ELSE NULL END) as latest_unpaid_invoice_number
             FROM patients p
             JOIN invoices i ON p.id = i.patient_id
             {$whereClause}
@@ -1747,7 +1818,9 @@ class AccountingOperation
                 i.paid_amount as total_paid,
                 i.due_amount as balance_due,
                 i.created_at as last_activity,
-                i.id as latest_invoice_id
+                i.id as latest_invoice_id,
+                i.id as latest_unpaid_invoice_id,
+                i.invoice_number as latest_unpaid_invoice_number
             FROM invoices i
             WHERE " . implode(' AND ', $whereW) . "
             ORDER BY i.due_amount DESC, i.created_at DESC
@@ -1851,7 +1924,9 @@ class AccountingOperation
                 COALESCE(SUM(p.paid_amount), 0.00) as total_paid,
                 COALESCE(SUM(p.due_amount), 0.00) as balance_due,
                 MAX(p.created_at) as last_activity,
-                MAX(p.id) as latest_purchase_id
+                MAX(p.id) as latest_purchase_id,
+                MAX(CASE WHEN p.due_amount > 0.005 THEN p.id ELSE NULL END) as latest_unpaid_purchase_id,
+                MAX(CASE WHEN p.due_amount > 0.005 THEN p.po_number ELSE NULL END) as latest_unpaid_po_number
             FROM suppliers s
             LEFT JOIN purchases p ON s.id = p.supplier_id
             {$whereClause}
@@ -1890,7 +1965,9 @@ class AccountingOperation
                 COALESCE(SUM(p.paid_amount), 0.00) as total_paid,
                 COALESCE(SUM(p.due_amount), 0.00) as balance_due,
                 MAX(p.created_at) as last_activity,
-                MAX(p.id) as latest_purchase_id
+                MAX(p.id) as latest_purchase_id,
+                MAX(p.id) as latest_unpaid_purchase_id,
+                MAX(p.po_number) as latest_unpaid_po_number
             FROM purchases p
             WHERE " . implode(' AND ', $whereAdhoc) . "
             HAVING total_purchases_count > 0

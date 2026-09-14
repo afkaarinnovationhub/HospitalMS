@@ -97,9 +97,6 @@ include __DIR__ . '/../components/header.php';
                 <span class="material-symbols-outlined text-primary text-[28px]">payments</span>
                 Billing &amp; Cashiering Hub
             </h2>
-            <p class="font-body-sm text-xs sm:text-sm text-on-surface-variant mt-0.5">
-                Outpatient consultation bills, pharmacy dispense invoices, cashier collections, and receipt issuance.
-            </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <a href="accounting_dashboard.php" class="px-3.5 py-2 bg-surface-container border border-outline-variant hover:bg-surface-container-high text-on-surface font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors shadow-xs">
@@ -281,10 +278,16 @@ include __DIR__ . '/../components/header.php';
                                             'doctor'           => $activeInvoice['doctor_name'] ?: 'General OPD',
                                             'department'       => $activeInvoice['department'] ?: 'General OPD',
                                             'priority'         => ucfirst($activeInvoice['queue_priority'] ?? 'Normal'),
+                                            'subtotal'         => (float)$activeInvoice['subtotal'],
+                                            'net_total'        => (float)$activeInvoice['net_total'],
                                             'paid_amount'      => (float)$activeInvoice['paid_amount'],
-                                            'payment_method'   => strtoupper($activeInvoice['payment_method'] ?: 'CASH'),
+                                            'due_amount'       => (float)$activeInvoice['due_amount'],
+                                            'payment_method'   => ((float)$activeInvoice['paid_amount'] <= 0.001) ? 'DEBT / A/R 1100' : strtoupper($activeInvoice['payment_method'] ?: 'CASH'),
                                             'invoice_number'   => $activeInvoice['invoice_number'],
-                                            'payment_status'   => ((float)$activeInvoice['due_amount'] <= 0.001 && (float)$activeInvoice['paid_amount'] > 0) ? 'PAID & VERIFIED' : (((float)$activeInvoice['paid_amount'] > 0) ? 'PARTIAL PAYMENT' : 'PENDING CASHIER'),
+                                            'payment_status'   => ((float)$activeInvoice['due_amount'] <= 0.001 && (float)$activeInvoice['paid_amount'] > 0) ? 'PAID & VERIFIED' : (((float)$activeInvoice['paid_amount'] > 0) ? 'PARTIAL PAYMENT' : 'CLEARED ON CREDIT (DEBT)'),
+                                            'clearance_stamp'  => ((float)$activeInvoice['due_amount'] <= 0.001 && (float)$activeInvoice['paid_amount'] > 0) ? '✓ PAID IN FULL & VERIFIED' : (((float)$activeInvoice['paid_amount'] > 0) ? '✓ PARTIAL PAYMENT RECORDED' : '✓ CLEARED ON CREDIT (DEBT RECORDED)'),
+                                            'notice'           => ((float)$activeInvoice['paid_amount'] <= 0.001) ? 'Biilkan waxaa loo fasaxay Deyn Bukaanka (A/R 1100). Fadlan fariiso qeybta sugitaanka.' : 'Lacagta waa la xaqiijiyay. Fadlan fariiso qeybta sugitaanka.',
+                                            'subnotice'        => ((float)$activeInvoice['paid_amount'] <= 0.001) ? 'Cleared on Credit / Accounts Receivable 1100. Please proceed to clinical area.' : 'Payment verified. Please proceed to service area.',
                                             'date_time'        => date('M d, Y g:i A', strtotime($activeInvoice['paid_at'] ?: $activeInvoice['created_at'])),
                                         ]), ENT_QUOTES, 'UTF-8'); ?>)" 
                                         class="px-3 py-1.5 bg-primary text-on-primary hover:bg-primary-container rounded-xl text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-xs">
@@ -416,7 +419,6 @@ include __DIR__ . '/../components/header.php';
                                         <option value="cash">1010 - Cash on Hand (Khasnadda)</option>
                                         <option value="mobile">1020 - Mobile Money (Zaad / EVC Plus)</option>
                                         <option value="bank">1030 - Bank Account (Commercial Banks)</option>
-                                        <option value="credit">1100 - Patient Credit / Accounts Receivable (Deyn)</option>
                                     </select>
                                 </div>
                             </div>
@@ -625,8 +627,8 @@ include __DIR__ . '/../components/header.php';
             </div>
 
             <div class="border-b border-dashed border-gray-300 pb-2 text-[11px] font-bold space-y-0.5 text-left">
-                <div class="flex justify-between"><span class="text-gray-600">Total Bill:</span> <span id="ppt-total" class="font-mono">$10.00</span></div>
-                <div class="flex justify-between text-green-700"><span>Paid Now:</span> <span id="ppt-paid" class="font-mono">$10.00 (CASH)</span></div>
+                <div class="flex justify-between"><span class="text-gray-600">Total Bill:</span> <span id="ppt-total" class="font-mono">$0.00</span></div>
+                <div id="ppt-paid-row" class="flex justify-between text-green-700"><span>Paid Now:</span> <span id="ppt-paid" class="font-mono">$0.00</span></div>
                 <div id="ppt-due-row" class="flex justify-between text-red-600 hidden"><span>Balance Due:</span> <span id="ppt-due" class="font-mono">$0.00</span></div>
             </div>
 
@@ -747,30 +749,29 @@ include __DIR__ . '/../components/header.php';
     function updatePaymentNotice(dueAmount) {
         const input = document.getElementById('checkout-amount-input');
         const notice = document.getElementById('payment-deyn-notice');
-        const methodSelect = document.getElementById('checkout-payment-method');
         if (!input || !notice) return;
 
         const paidVal = parseFloat(input.value) || 0.0;
         const diff = Math.max(0, dueAmount - paidVal);
 
-        if (diff > 0.005) {
-            notice.classList.remove('hidden');
-            notice.className = 'p-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center gap-2';
-            notice.innerHTML = `
-                <span class="material-symbols-outlined text-amber-600 text-[18px]">warning</span>
-                <div>
-                    <p class="font-bold">⚠️ Qeyb-bixin (Partial Settlement / Deyn)</p>
-                    <p class="text-[11px] mt-0.5">Bukaanku wuxuu bixinayaa <strong>$${paidVal.toFixed(2)}</strong>. Haraaga ah <strong>$${diff.toFixed(2)}</strong> waxaa toos loogu qori doonaa diiwaanka Deyn Bukaanka (Accounts Receivable 1100), adeegana waa loo fasaxayaa.</p>
-                </div>
-            `;
-        } else if (methodSelect && methodSelect.value === 'credit') {
+        if (paidVal <= 0.001) {
             notice.classList.remove('hidden');
             notice.className = 'p-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center gap-2';
             notice.innerHTML = `
                 <span class="material-symbols-outlined text-amber-600 text-[18px]">account_balance_wallet</span>
                 <div>
-                    <p class="font-bold">Deyn 100% (Accounts Receivable 1100)</p>
-                    <p class="text-[11px] mt-0.5">Wadarta lacagta ($${dueAmount.toFixed(2)}) waxaa toos loogu qori doonaa Deyn Bukaanka (A/R 1100), adeegana waa loo fasaxayaa.</p>
+                    <p class="font-bold">⚠️ Deyn 100% ah (Accounts Receivable 1100)</p>
+                    <p class="text-[11px] mt-0.5">Bukaanku wax lacag ah ma dhiibin ($0.00). Wadarta biilkan <strong>($${dueAmount.toFixed(2)})</strong> waxaa toos loogu qori doonaa diiwaanka Deyn Bukaanka (A/R 1100), adeegana waa loo fasaxayaa.</p>
+                </div>
+            `;
+        } else if (diff > 0.005) {
+            notice.classList.remove('hidden');
+            notice.className = 'p-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center gap-2';
+            notice.innerHTML = `
+                <span class="material-symbols-outlined text-amber-600 text-[18px]">warning</span>
+                <div>
+                    <p class="font-bold">⚠️ Qeyb-bixin (Partial Settlement &amp; Deyn)</p>
+                    <p class="text-[11px] mt-0.5">Bukaanku wuxuu dhiibayaa <strong>$${paidVal.toFixed(2)}</strong>. Haraaga ah <strong>$${diff.toFixed(2)}</strong> waxaa toos loogu qori doonaa diiwaanka Deyn Bukaanka (Accounts Receivable 1100), adeegana waa loo fasaxayaa.</p>
                 </div>
             `;
         } else {
@@ -840,23 +841,43 @@ include __DIR__ . '/../components/header.php';
             itemsContainer.classList.add('hidden');
         }
 
-        const totalAmt = data.net_total !== undefined ? `$${parseFloat(data.net_total).toFixed(2)}` : (data.paid_amount ? `$${parseFloat(data.paid_amount).toFixed(2)}` : '$10.00');
-        document.getElementById('ppt-total').textContent = totalAmt;
+        const paidVal = (data.paid_amount !== undefined && data.paid_amount !== null && !isNaN(parseFloat(data.paid_amount)))
+            ? parseFloat(data.paid_amount)
+            : 0.0;
+        const netVal = (data.net_total !== undefined && data.net_total !== null && !isNaN(parseFloat(data.net_total)))
+            ? parseFloat(data.net_total)
+            : ((data.total_bill !== undefined) ? parseFloat(data.total_bill) : paidVal);
+        const dueVal = (data.due_amount !== undefined && data.due_amount !== null && !isNaN(parseFloat(data.due_amount)))
+            ? parseFloat(data.due_amount)
+            : Math.max(0, netVal - paidVal);
 
-        const paidAmt = data.paid_amount ? `$${parseFloat(data.paid_amount).toFixed(2)}` : '$10.00';
-        const method = data.payment_method ? ` (${data.payment_method})` : '';
-        document.getElementById('ppt-paid').textContent = paidAmt + method;
+        document.getElementById('ppt-total').textContent = `$${netVal.toFixed(2)}`;
+
+        const paidRow = document.getElementById('ppt-paid-row');
+        const paidEl = document.getElementById('ppt-paid');
+        if (paidVal <= 0.001) {
+            paidEl.textContent = `$0.00 (DEBT / AR 1100)`;
+            if (paidRow) {
+                paidRow.className = 'flex justify-between text-amber-700 font-bold';
+            }
+        } else {
+            const method = data.payment_method ? ` (${data.payment_method})` : '';
+            paidEl.textContent = `$${paidVal.toFixed(2)}${method}`;
+            if (paidRow) {
+                paidRow.className = 'flex justify-between text-green-700 font-bold';
+            }
+        }
 
         const dueRow = document.getElementById('ppt-due-row');
-        if (data.due_amount && parseFloat(data.due_amount) > 0.01) {
-            document.getElementById('ppt-due').textContent = `$${parseFloat(data.due_amount).toFixed(2)}`;
+        if (dueVal > 0.005) {
+            document.getElementById('ppt-due').textContent = `$${dueVal.toFixed(2)}`;
             dueRow.classList.remove('hidden');
         } else {
             dueRow.classList.add('hidden');
         }
 
-        document.getElementById('ppt-notice').textContent = data.notice || 'Lacagta waa la xaqiijiyay. Fadlan fariiso qeybta sugitaanka.';
-        document.getElementById('ppt-subnotice').textContent = data.subnotice || 'Payment verified. Please proceed to service area.';
+        document.getElementById('ppt-notice').textContent = data.notice || (paidVal <= 0.001 ? 'Biilkan waxaa loo fasaxay Deyn Bukaanka (A/R 1100).' : 'Lacagta waa la xaqiijiyay. Fadlan fariiso qeybta sugitaanka.');
+        document.getElementById('ppt-subnotice').textContent = data.subnotice || (paidVal <= 0.001 ? 'Cleared on Credit / Accounts Receivable 1100.' : 'Payment verified. Please proceed to service area.');
 
         document.getElementById('print-paid-token-modal').classList.remove('hidden');
     }

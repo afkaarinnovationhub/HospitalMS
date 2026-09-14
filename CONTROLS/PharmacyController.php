@@ -82,7 +82,7 @@ class PharmacyController
                 'paid_amount'      => (float)($saleData['paid_amount'] ?? ($paidAmountInput ?? 0)),
                 'due_amount'       => (float)($saleData['due_amount'] ?? 0),
                 'payment_method'   => strtoupper($paymentMethod),
-                'invoice_number'   => $saleData['invoice_number'] ?? ($rxData['prescription_number'] ?? ('RX-' . $prescriptionId)),
+                'invoice_number'   => $saleData['invoice_number'] ?? ($rxData['rx_number'] ?? ($rxData['prescription_number'] ?? ('RX-' . $prescriptionId))),
                 'notice'           => 'Fadlan u qaado daawooyinka sida dhakhtarku kuu qoray.',
                 'subnotice'        => 'Take medications strictly according to doctor instructions.',
                 'date_time'        => date('M d, Y g:i A'),
@@ -119,8 +119,13 @@ class PharmacyController
         $userId = (int)($currentUser['id'] ?? 1);
 
         try {
-            $customerName   = sanitizeString($post['customer_name'] ?? 'Walk-in Customer');
-            $customerPhone  = sanitizeString($post['customer_phone'] ?? '');
+            $patientId      = !empty($post['patient_id']) ? (int)$post['patient_id'] : null;
+            $rawCustName    = trim((string)($post['customer_name'] ?? ''));
+            if ($rawCustName === '' && !empty($post['patient_search_query'])) {
+                $rawCustName = trim((string)$post['patient_search_query']);
+            }
+            $customerName   = sanitizeString($rawCustName !== '' ? $rawCustName : 'Walk-in Customer');
+            $customerPhone  = sanitizeString(trim((string)($post['customer_phone'] ?? '')));
             $discountAmount = (float)($post['discount_amount'] ?? 0);
             $paidAmount     = (float)($post['paid_amount'] ?? 0);
             $paymentMethod  = $post['payment_method'] ?? 'cash';
@@ -148,6 +153,7 @@ class PharmacyController
             }
 
             $saleId = PharmacyOperation::createWalkInSale([
+                'patient_id'      => $patientId,
                 'customer_name'   => $customerName,
                 'customer_phone'  => $customerPhone,
                 'discount_amount' => $discountAmount,
@@ -158,6 +164,23 @@ class PharmacyController
 
             $saleData = PharmacyOperation::getSaleById($saleId);
 
+            $patientMrn = 'Walk-in Customer';
+            $actualPatientId = (int)($saleData['patient_id'] ?? $patientId ?? 0);
+            if ($actualPatientId > 0) {
+                $stmtMrn = getDBConnection()->prepare("SELECT mrn, first_name, last_name, phone FROM patients WHERE id = ?");
+                $stmtMrn->execute([$actualPatientId]);
+                $foundPat = $stmtMrn->fetch(PDO::FETCH_ASSOC);
+                if ($foundPat) {
+                    $patientMrn = $foundPat['mrn'] ?? 'N/A';
+                    if (empty($customerName) || $customerName === 'Walk-in Customer') {
+                        $customerName = trim(($foundPat['first_name'] ?? '') . ' ' . ($foundPat['last_name'] ?? ''));
+                    }
+                    if (empty($customerPhone)) {
+                        $customerPhone = $foundPat['phone'] ?? '';
+                    }
+                }
+            }
+
             $_SESSION['hpms_pharmacy_receipt'] = [
                 'type'             => 'walk_in',
                 'title'            => 'DIRECT PHARMACY / OTC RETAIL SALE',
@@ -165,9 +188,9 @@ class PharmacyController
                 'badge'            => 'DIRECT OTC RETAIL SALE',
                 'stamp'            => '✓ OTC PURCHASE COMPLETED',
                 'token'            => '',
-                'name'             => $customerName,
-                'mrn'              => 'Walk-in Customer',
-                'phone'            => $customerPhone ?: 'N/A',
+                'name'             => $saleData['customer_name'] ?? $customerName,
+                'mrn'              => $patientMrn,
+                'phone'            => ($saleData['customer_phone'] ?? $customerPhone) ?: 'N/A',
                 'doctor'           => 'N/A (Direct OTC)',
                 'department'       => 'Pharmacy Retail',
                 'items'            => $saleData['items'] ?? [],
