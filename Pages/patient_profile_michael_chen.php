@@ -94,7 +94,20 @@ $vitalsHistory   = PatientOperation::getPatientVitalsHistory($patientId, 30);
 $pdo = getDBConnection();
 $stmtRx = $pdo->prepare("
     SELECT p.*, COUNT(pi.id) as item_count, 
-           GROUP_CONCAT(CONCAT(m.name, ' (Qty: ', pi.quantity, IF(pi.dosage_instructions IS NOT NULL AND pi.dosage_instructions != '', CONCAT(' - ', pi.dosage_instructions), ''), ')') SEPARATOR ' • ') as med_names
+           GROUP_CONCAT(
+               CONCAT(
+                   m.name, 
+                   CASE 
+                       WHEN p.status = 'dispensed' AND COALESCE(pi.quantity_dispensed, 0) < pi.quantity AND COALESCE(pi.quantity_dispensed, 0) > 0 
+                           THEN CONCAT(' (La bixiyay: ', pi.quantity_dispensed, '/', pi.quantity, ')')
+                       WHEN p.status = 'dispensed' AND COALESCE(pi.quantity_dispensed, 0) = 0 
+                           THEN CONCAT(' (0/', pi.quantity, ' - Ma qaadan/Bannaanka)')
+                       ELSE CONCAT(' (Qty: ', pi.quantity, ')')
+                   END,
+                   IF(pi.dosage_instructions IS NOT NULL AND pi.dosage_instructions != '', CONCAT(' - ', pi.dosage_instructions), '')
+               ) 
+               SEPARATOR ' • '
+           ) as med_names
     FROM prescriptions p
     LEFT JOIN prescription_items pi ON p.id = pi.prescription_id
     LEFT JOIN medications m ON pi.medication_id = m.id
@@ -706,12 +719,13 @@ include __DIR__ . '/../components/header.php';
                                         <span class="font-mono text-xs font-bold text-primary"><?php echo e($rx['rx_number']); ?></span>
                                         <?php 
                                             $rxStatus = $rx['status'];
+                                            $isPartial = ($rxStatus === 'partially_dispensed' || (!empty($rx['pharmacist_notes']) && stripos($rx['pharmacist_notes'], 'Partially dispensed') !== false));
                                             if ($rxStatus === 'external_purchase') {
                                                 $statusBadge = 'bg-amber-500/15 text-amber-900 dark:text-amber-200 border border-amber-500/40';
                                                 $statusText = '🛒 Bannaanka Ayuu Ka Gatay (External Purchase)';
                                             } elseif ($rxStatus === 'dispensed') {
-                                                $statusBadge = 'bg-emerald-600 text-white';
-                                                $statusText = '✓ Dispensed (Hospital Pharmacy)';
+                                                $statusBadge = $isPartial ? 'bg-amber-600 text-white' : 'bg-emerald-600 text-white';
+                                                $statusText = $isPartial ? '✓ Qayb La Bixiyay (Partial Dispensed)' : '✓ Dispensed (Hospital Pharmacy)';
                                             } elseif ($rxStatus === 'partially_dispensed') {
                                                 $statusBadge = 'bg-tertiary-fixed text-on-tertiary-fixed font-bold';
                                                 $statusText = 'Partial Dispense';
@@ -730,8 +744,8 @@ include __DIR__ . '/../components/header.php';
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <a href="pharmacy_dispensing_prescription.php?rx_id=<?php echo (int)$rx['id']; ?>" class="px-3 py-1.5 bg-surface border border-outline-variant hover:bg-surface-container rounded-lg text-xs font-semibold text-primary flex items-center gap-1 shadow-xs no-print">
-                                        <span class="material-symbols-outlined text-[15px]"><?php echo ($rxStatus === 'external_purchase') ? 'description' : 'point_of_sale'; ?></span>
-                                        <?php echo ($rxStatus === 'external_purchase') ? 'Print Prescription Slip' : 'Open in Pharmacy'; ?>
+                                        <span class="material-symbols-outlined text-[15px]"><?php echo ($rxStatus === 'external_purchase' || $isPartial) ? 'description' : 'point_of_sale'; ?></span>
+                                        <?php echo ($rxStatus === 'external_purchase' || $isPartial) ? 'Print Prescription Slip' : 'Open in Pharmacy'; ?>
                                     </a>
                                 </div>
                             </div>

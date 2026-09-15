@@ -180,7 +180,7 @@ include __DIR__ . '/../components/header.php';
                     <?php endif; ?>
 
                     <!-- Dispense Form wrapping interactive table and checkout -->
-                    <form method="POST" action="pharmacy_dispensing_prescription.php" class="space-y-4">
+                    <form id="form-rx-dispense" method="POST" action="pharmacy_dispensing_prescription.php" class="space-y-4">
                         <?php echo csrfField(); ?>
                         <input type="hidden" name="action" value="dispense">
                         <input type="hidden" name="prescription_id" value="<?php echo (int)$activePrescription['id']; ?>">
@@ -243,7 +243,7 @@ include __DIR__ . '/../components/header.php';
                                                             class="dispense-qty-input w-16 bg-surface border border-primary/40 focus:border-primary rounded px-2 py-1 text-center font-bold text-xs text-primary outline-none"
                                                             min="0" 
                                                             max="<?php echo $qtyRemaining; ?>" 
-                                                            value="<?php echo $qtyRemaining; ?>"
+                                                            value="<?php echo $defaultDispenseQty; ?>"
                                                             data-unit-price="<?php echo $unitPrice; ?>"
                                                             data-remaining="<?php echo $qtyRemaining; ?>"
                                                             data-id="<?php echo $itemId; ?>"
@@ -1079,6 +1079,22 @@ include __DIR__ . '/../components/header.php';
                     if (phoneInput) phoneInput.focus();
                     return false;
                 }
+            }
+        });
+    }
+
+    // Dispense Form Validation: If all items are 0, prompt to use External Purchase button
+    const rxDispenseForm = document.getElementById('form-rx-dispense');
+    if (rxDispenseForm) {
+        rxDispenseForm.addEventListener('submit', function(e) {
+            let totalQtyDispense = 0;
+            document.querySelectorAll('.dispense-qty-input').forEach(inp => {
+                totalQtyDispense += Math.max(0, parseInt(inp.value) || 0);
+            });
+            if (totalQtyDispense <= 0) {
+                e.preventDefault();
+                alert("Dhammaan daawooyinka waxaa ku qoran 0 xabbo. Haddii bukaanku dhammaan daawooyinka meel kale ka gadanayo, fadlan riix badhanka 'Bannaanka Ayuu Ka Gadanayaa (External)'.");
+                return false;
             }
         });
     }

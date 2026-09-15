@@ -49,9 +49,9 @@ class PharmacyOperation
             FROM prescriptions p
             LEFT JOIN prescription_items pi ON p.id = pi.prescription_id
             LEFT JOIN medications m ON pi.medication_id = m.id
-            WHERE p.status IN ('pending', 'partially_dispensed')
+            WHERE p.status = 'pending'
             GROUP BY p.id
-            ORDER BY FIELD(p.status, 'pending', 'partially_dispensed'), p.created_at DESC
+            ORDER BY p.created_at DESC
         ";
         return $pdo->query($sql)->fetchAll();
     }
@@ -312,7 +312,18 @@ class PharmacyOperation
             $stmtCheckRemaining->execute([':id' => $prescriptionId]);
             $totalRemainingAfter = (int)$stmtCheckRemaining->fetchColumn();
 
-            $newStatus = ($totalRemainingAfter <= 0) ? 'dispensed' : 'partially_dispensed';
+            // Finalize prescription so it cleanly leaves the Pending Queue
+            // Any items entered with 0 or left unfulfilled are concluded per patient decision.
+            $newStatus = 'dispensed';
+
+            $noteParts = [];
+            if ($totalRemainingAfter > 0) {
+                $noteParts[] = "Partially dispensed ({$totalRemainingAfter} units unfulfilled/external)";
+            }
+            if (!empty($pharmacistNotes)) {
+                $noteParts[] = $pharmacistNotes;
+            }
+            $finalNotes = !empty($noteParts) ? implode(' • ', $noteParts) : 'Dispensed to patient';
 
             $stmtUpdateRx = $pdo->prepare("
                 UPDATE prescriptions 
@@ -324,7 +335,7 @@ class PharmacyOperation
             ");
             $stmtUpdateRx->execute([
                 ':status'  => $newStatus,
-                ':notes'   => $pharmacistNotes ?: ($newStatus === 'dispensed' ? 'Fully dispensed to patient' : 'Partially dispensed to patient'),
+                ':notes'   => $finalNotes,
                 ':user_id' => $dispensedBy,
                 ':id'      => $prescriptionId,
             ]);
