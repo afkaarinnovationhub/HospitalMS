@@ -150,9 +150,6 @@ include __DIR__ . '/../components/header.php';
                     <span class="material-symbols-outlined text-primary">patient_list</span>
                     Active Patient Waiting Queue
                 </h3>
-                <span id="doc-queue-badge" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
-                    <?php echo count($waitingQueue); ?> Patients
-                </span>
             </div>
 
             <div class="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">

@@ -189,29 +189,6 @@ include __DIR__ . '/../components/header.php';
         </div>
     </div>
 
-    <!-- Inventory Reconciliation Status -->
-    <div class="mb-lg p-3.5 sm:p-4 rounded-xl <?php echo $reconciliation['is_reconciled'] ? 'bg-secondary-fixed/30 border border-secondary/40 text-on-secondary-fixed-variant' : 'bg-error-container border border-error/40 text-on-error-container'; ?> flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
-        <div class="flex items-start gap-3">
-            <span class="material-symbols-outlined <?php echo $reconciliation['is_reconciled'] ? 'text-secondary' : 'text-error'; ?> text-[24px] shrink-0 mt-0.5">
-                <?php echo $reconciliation['is_reconciled'] ? 'verified' : 'gpp_bad'; ?>
-            </span>
-            <div>
-                <div class="flex items-center gap-2">
-                    <span class="font-bold text-xs sm:text-sm">Batch Ledger &amp; GL Inventory Reconciliation</span>
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider <?php echo $reconciliation['is_reconciled'] ? 'bg-secondary text-on-secondary' : 'bg-error text-on-error'; ?>">
-                        <?php echo $reconciliation['is_reconciled'] ? 'Balanced' : 'Discrepancy'; ?>
-                    </span>
-                </div>
-                <p class="text-[11px] sm:text-xs opacity-90 mt-0.5">
-                    Batches Valuation: <strong>$<?php echo number_format((float)$reconciliation['batch_inventory_valuation'], 2); ?></strong>
-                    &bull; GL Balance: <strong>$<?php echo number_format((float)$reconciliation['gl_inventory_balance'], 2); ?></strong>
-                    <?php if (!$reconciliation['is_reconciled']): ?>
-                        &bull; Variance: <strong class="text-error font-bold">$<?php echo number_format(abs((float)$reconciliation['discrepancy']), 2); ?></strong>
-                    <?php endif; ?>
-                </p>
-            </div>
-        </div>
-    </div>
 
     <!-- View Switcher Tabs -->
     <div class="flex items-center gap-2 mb-md border-b border-outline-variant pb-2">

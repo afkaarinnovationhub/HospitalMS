@@ -402,7 +402,6 @@ include __DIR__ . '/../components/header.php';
                         <span class="material-symbols-outlined text-primary text-[20px]">timeline</span>
                         Complete Patient Journey (Safarka Bukaanka ee Isbitaalka)
                     </h3>
-                    <p class="text-xs text-on-surface-variant">Chronological medical log of all doctor encounters, lab tests, prescriptions, and follow-ups.</p>
                 </div>
             </div>
 
@@ -524,7 +523,6 @@ include __DIR__ . '/../components/header.php';
                         <span class="material-symbols-outlined text-primary text-[20px]">stethoscope</span>
                         Doctor Consultations &amp; SOAP Documentation (<?php echo count($consultations); ?>)
                     </h3>
-                    <p class="text-xs text-on-surface-variant">Full clinical diagnoses, physical exam notes, treatment plans, and follow-up schedules.</p>
                 </div>
             </div>
 
@@ -620,7 +618,6 @@ include __DIR__ . '/../components/header.php';
                         <span class="material-symbols-outlined text-secondary text-[20px]">biotech</span>
                         Laboratory Orders &amp; Verified Results (<?php echo count($labOrders); ?>)
                     </h3>
-                    <p class="text-xs text-on-surface-variant">Pathology test history, specimen tracking, diagnostic findings, and verified laboratory notes.</p>
                 </div>
             </div>
 
@@ -700,7 +697,6 @@ include __DIR__ . '/../components/header.php';
                         <span class="material-symbols-outlined text-primary text-[20px]">prescriptions</span>
                         Prescription History &amp; Medications Dispensed (<?php echo count($prescriptions); ?>)
                     </h3>
-                    <p class="text-xs text-on-surface-variant">Electronic prescriptions, drug dosages, and retail pharmacy dispensing records.</p>
                 </div>
             </div>
 
@@ -777,7 +773,6 @@ include __DIR__ . '/../components/header.php';
                         <span class="material-symbols-outlined text-primary text-[20px]">calendar_month</span>
                         Follow-up Appointments Schedule (Ballamaha Dib-u-eegista)
                     </h3>
-                    <p class="text-xs text-on-surface-variant">Scheduled return visits, clinician assignments, and appointment completion logs.</p>
                 </div>
             </div>
 

@@ -90,76 +90,9 @@ include __DIR__ . '/../components/header.php';
         </div>
     <?php endif; ?>
 
-    <!-- Header Title & Action Toolbar -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div>
-            <h2 class="font-headline-md text-xl sm:text-2xl font-bold text-on-surface flex items-center gap-2">
-                <span class="material-symbols-outlined text-primary text-[28px]">payments</span>
-                Billing &amp; Cashiering Hub
-            </h2>
-        </div>
-        <div class="flex flex-wrap items-center gap-2">
-            <a href="accounting_dashboard.php" class="px-3.5 py-2 bg-surface-container border border-outline-variant hover:bg-surface-container-high text-on-surface font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors shadow-xs">
-                <span class="material-symbols-outlined text-[18px]">account_balance</span>
-                Accounting Ledger
-            </a>
-        </div>
-    </div>
 
-    <!-- Summary KPI Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <!-- 1. Collected Today -->
-        <div class="p-4 rounded-2xl bg-surface border border-outline-variant shadow-xs flex flex-col justify-between">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-on-surface-variant">Collected (Today)</span>
-                <span class="w-8 h-8 rounded-full bg-secondary-fixed/40 text-secondary flex items-center justify-center">
-                    <span class="material-symbols-outlined text-[20px]">paid</span>
-                </span>
-            </div>
-            <div class="mt-3">
-                <h3 class="text-2xl font-bold text-secondary font-mono">$<?php echo number_format((float)$kpis['collected_today'], 2); ?></h3>
-            </div>
-        </div>
 
-        <!-- 2. Billed Today -->
-        <div class="p-4 rounded-2xl bg-surface border border-outline-variant shadow-xs flex flex-col justify-between">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-on-surface-variant">Total Invoiced (Today)</span>
-                <span class="w-8 h-8 rounded-full bg-primary-fixed/40 text-primary flex items-center justify-center">
-                    <span class="material-symbols-outlined text-[20px]">receipt_long</span>
-                </span>
-            </div>
-            <div class="mt-3">
-                <h3 class="text-2xl font-bold text-primary font-mono">$<?php echo number_format((float)$kpis['billed_today'], 2); ?></h3>
-            </div>
-        </div>
 
-        <!-- 3. Pending Invoices Queue -->
-        <div class="p-4 rounded-2xl bg-surface border border-outline-variant shadow-xs flex flex-col justify-between">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-amber-600">Pending Invoices Queue</span>
-                <span class="w-8 h-8 rounded-full bg-amber-500/20 text-amber-600 flex items-center justify-center">
-                    <span class="material-symbols-outlined text-[20px]">pending_actions</span>
-                </span>
-            </div>
-            <div class="mt-3">
-                <h3 class="text-2xl font-bold text-amber-600 font-mono"><?php echo $kpis['pending_count']; ?></h3>
-            </div>
-        </div>
-
-        <!-- 4. Uncollected Balance -->
-        <div class="p-4 rounded-2xl bg-surface border border-outline-variant shadow-xs flex flex-col justify-between">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-error">Uncollected Due</span>
-                <span class="w-8 h-8 rounded-full bg-error-container text-on-error-container flex items-center justify-center">
-                    <span class="material-symbols-outlined text-[20px]">hourglass_empty</span>
-                </span>
-            </div>
-            <div class="mt-3">
-                <h3 class="text-2xl font-bold text-error font-mono">$<?php echo number_format((float)$kpis['uncollected_due'], 2); ?></h3>
-            </div>
-        </div>
-    </div>
 
     <!-- Main 2-Column Billing Workspace -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
@@ -411,20 +344,16 @@ include __DIR__ . '/../components/header.php';
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Amount to Pay ($ USD) *</label>
-                                    <input name="paid_amount" id="checkout-amount-input" type="number" step="0.01" min="0.00" max="<?php echo (float)$activeInvoice['due_amount']; ?>" value="<?php echo (float)$activeInvoice['due_amount']; ?>" oninput="updatePaymentNotice(<?php echo (float)$activeInvoice['due_amount']; ?>)" required class="w-full bg-surface border border-outline-variant rounded-lg p-2 text-sm font-mono font-bold text-on-surface focus:border-primary outline-none">
+                                    <input name="paid_amount" id="checkout-amount-input" type="number" step="0.01" min="0.00" max="<?php echo (float)$activeInvoice['due_amount']; ?>" value="<?php echo (float)$activeInvoice['due_amount']; ?>" required class="w-full bg-surface border border-outline-variant rounded-lg p-2 text-sm font-mono font-bold text-on-surface focus:border-primary outline-none">
                                 </div>
                                 <div>
                                     <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Payment Method *</label>
-                                    <select name="payment_method" id="checkout-payment-method" onchange="updatePaymentNotice(<?php echo (float)$activeInvoice['due_amount']; ?>)" required class="w-full bg-surface border border-outline-variant rounded-lg p-2 text-xs text-on-surface focus:border-primary outline-none">
-                                        <option value="cash">1010 - Cash on Hand (Khasnadda)</option>
-                                        <option value="mobile">1020 - Mobile Money (Zaad / EVC Plus)</option>
-                                        <option value="bank">1030 - Bank Account (Commercial Banks)</option>
+                                    <select name="payment_method" id="checkout-payment-method" required class="w-full bg-surface border border-outline-variant rounded-lg p-2 text-xs text-on-surface focus:border-primary outline-none">
+                                        <option value="cash">Cash on Hand (Khasnadda)</option>
+                                        <option value="mobile">Mobile Money (EVC Plus / E-Dahab)</option>
+                                        <option value="bank">Bank Account (Commercial Banks)</option>
                                     </select>
                                 </div>
-                            </div>
-
-                            <!-- Live Partial Payment / Deyn Notification -->
-                            <div id="payment-deyn-notice" class="hidden p-2.5 rounded-xl border text-xs font-semibold">
                             </div>
 
                             <div>
@@ -454,43 +383,7 @@ include __DIR__ . '/../components/header.php';
         </div>
     </div>
 
-    <!-- Settled & Paid Invoices History -->
-    <?php if (!empty($paidHistory)): ?>
-        <div class="bg-surface border border-outline-variant rounded-2xl p-5 shadow-xs space-y-4">
-            <h3 class="font-bold text-sm text-on-surface flex items-center gap-2 border-b border-outline-variant pb-3">
-                <span class="material-symbols-outlined text-secondary text-[20px]">history</span>
-                Recently Settled &amp; Paid Invoices (Bishan)
-            </h3>
-            <div class="overflow-x-auto custom-scrollbar">
-                <table class="w-full text-left border-collapse text-xs">
-                    <thead>
-                        <tr class="border-b border-outline-variant text-on-surface-variant font-bold bg-surface-container-lowest">
-                            <th class="py-2.5 px-3">Invoice #</th>
-                            <th class="py-2.5 px-3">Date Paid</th>
-                            <th class="py-2.5 px-3">Patient</th>
-                            <th class="py-2.5 px-3">Bill Type</th>
-                            <th class="py-2.5 px-3">Payment Method</th>
-                            <th class="py-2.5 px-3">Cashier</th>
-                            <th class="py-2.5 px-3 text-right">Amount Collected</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-outline-variant/60">
-                        <?php foreach ($paidHistory as $ph): ?>
-                            <tr class="hover:bg-surface-container-low transition-colors">
-                                <td class="py-2.5 px-3 font-mono font-bold text-primary"><?php echo e($ph['invoice_number']); ?></td>
-                                <td class="py-2.5 px-3 text-on-surface-variant"><?php echo date('M d, Y g:i A', strtotime($ph['paid_at'])); ?></td>
-                                <td class="py-2.5 px-3 font-semibold text-on-surface"><?php echo e($ph['customer_name']); ?></td>
-                                <td class="py-2.5 px-3 uppercase font-bold text-[10px] text-on-surface-variant"><?php echo e($ph['bill_type']); ?></td>
-                                <td class="py-2.5 px-3 capitalize"><span class="bg-surface-container px-2 py-0.5 rounded font-bold"><?php echo e($ph['payment_method']); ?></span></td>
-                                <td class="py-2.5 px-3 text-on-surface-variant"><?php echo e($ph['cashier_name'] ?: 'Cashier'); ?></td>
-                                <td class="py-2.5 px-3 text-right font-mono font-bold text-secondary">+$<?php echo number_format((float)$ph['paid_amount'], 2); ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    <?php endif; ?>
+
 </main>
 
 <!-- MODAL: Printable Official Hospital Receipt -->
@@ -742,40 +635,6 @@ include __DIR__ . '/../components/header.php';
         const input = document.getElementById('checkout-amount-input');
         if (input) {
             input.value = parseFloat(due).toFixed(2);
-            updatePaymentNotice(due);
-        }
-    }
-
-    function updatePaymentNotice(dueAmount) {
-        const input = document.getElementById('checkout-amount-input');
-        const notice = document.getElementById('payment-deyn-notice');
-        if (!input || !notice) return;
-
-        const paidVal = parseFloat(input.value) || 0.0;
-        const diff = Math.max(0, dueAmount - paidVal);
-
-        if (paidVal <= 0.001) {
-            notice.classList.remove('hidden');
-            notice.className = 'p-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center gap-2';
-            notice.innerHTML = `
-                <span class="material-symbols-outlined text-amber-600 text-[18px]">account_balance_wallet</span>
-                <div>
-                    <p class="font-bold">⚠️ Deyn 100% ah (Accounts Receivable 1100)</p>
-                    <p class="text-[11px] mt-0.5">Bukaanku wax lacag ah ma dhiibin ($0.00). Wadarta biilkan <strong>($${dueAmount.toFixed(2)})</strong> waxaa toos loogu qori doonaa diiwaanka Deyn Bukaanka (A/R 1100), adeegana waa loo fasaxayaa.</p>
-                </div>
-            `;
-        } else if (diff > 0.005) {
-            notice.classList.remove('hidden');
-            notice.className = 'p-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center gap-2';
-            notice.innerHTML = `
-                <span class="material-symbols-outlined text-amber-600 text-[18px]">warning</span>
-                <div>
-                    <p class="font-bold">⚠️ Qeyb-bixin (Partial Settlement &amp; Deyn)</p>
-                    <p class="text-[11px] mt-0.5">Bukaanku wuxuu dhiibayaa <strong>$${paidVal.toFixed(2)}</strong>. Haraaga ah <strong>$${diff.toFixed(2)}</strong> waxaa toos loogu qori doonaa diiwaanka Deyn Bukaanka (Accounts Receivable 1100), adeegana waa loo fasaxayaa.</p>
-                </div>
-            `;
-        } else {
-            notice.classList.add('hidden');
         }
     }
 

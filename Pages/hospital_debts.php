@@ -157,7 +157,6 @@ include __DIR__ . '/../components/header.php';
                     <h2 class="font-headline-md text-xl sm:text-2xl font-bold text-on-surface">
                         Hospital Debts Ledger
                     </h2>
-                    <p class="text-xs text-on-surface-variant">Accounts Payable &amp; Vendor Restock Ledger</p>
                 </div>
             </div>
         </div>
@@ -811,9 +810,9 @@ include __DIR__ . '/../components/header.php';
             <div class="space-y-1">
                 <label class="text-xs font-bold text-on-surface">Disbursement Account (Laga jarayo)</label>
                 <select name="payment_method" class="w-full bg-surface border border-outline-variant rounded-xl px-3 py-2 text-xs font-semibold text-on-surface focus:border-primary outline-none">
-                    <option value="cash">Cash on Hand (1010 - Khasnadda)</option>
-                    <option value="mobile">Mobile Money (1020 - EVC Plus / Zaad / Sahal)</option>
-                    <option value="bank">Bank Account (1030 - Commercial Banks)</option>
+                    <option value="cash">Cash on Hand (Khasnadda)</option>
+                    <option value="mobile">Mobile Money (EVC Plus / E-Dahab)</option>
+                    <option value="bank">Bank Account (Commercial Banks)</option>
                 </select>
             </div>
 

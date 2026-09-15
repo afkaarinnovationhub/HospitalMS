@@ -721,7 +721,6 @@ include __DIR__ . '/../components/header.php';
                 </div>
                 <div>
                     <h3 class="font-bold text-sm text-on-surface">Collect Patient Debt</h3>
-                    <p class="text-[11px] text-on-surface-variant">Record debt payment installment or full settlement</p>
                 </div>
             </div>
             <button type="button" onclick="closePayPatientDebtModal()" class="w-8 h-8 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface cursor-pointer">
@@ -810,10 +809,9 @@ include __DIR__ . '/../components/header.php';
             <div class="space-y-1">
                 <label class="text-xs font-bold text-on-surface">Payment Method</label>
                 <select name="payment_method" class="w-full bg-surface border border-outline-variant rounded-xl px-3 py-2 text-xs font-semibold text-on-surface focus:border-primary outline-none">
-                    <option value="cash">Cash (Khasnadda)</option>
-                    <option value="mobile">Mobile Money (EVC Plus / Zaad / Sahal)</option>
-                    <option value="bank">Bank Transfer (Commercial Banks)</option>
-                    <option value="card">Credit / Debit Card</option>
+                    <option value="cash">Cash on Hand (Khasnadda)</option>
+                    <option value="mobile">Mobile Money (EVC Plus / E-Dahab)</option>
+                    <option value="bank">Bank Account (Commercial Banks)</option>
                 </select>
             </div>
 

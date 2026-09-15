@@ -142,7 +142,6 @@ include __DIR__ . '/../components/header.php';
                     <span class="material-symbols-outlined text-primary text-[20px]">person_pin</span>
                     Outstanding Patient Debts
                 </h3>
-                <p class="text-[11px] text-on-surface-variant">Click any patient or amount to view their full statement, invoices, and payment receipts.</p>
             </div>
             <span class="text-xs font-bold text-error bg-error-container/40 px-2.5 py-1 rounded-full w-fit">
                 <?php echo count($debtorAccounts); ?> Debtor Account(s)

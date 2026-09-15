@@ -223,7 +223,6 @@ include __DIR__ . '/../components/header.php';
                             <td colspan="8" class="py-12 text-center text-on-surface-variant">
                                 <span class="material-symbols-outlined text-4xl mb-2 text-outline">science</span>
                                 <p class="font-semibold text-sm">No diagnostic laboratory tests found matching filter.</p>
-                                <p class="text-xs mt-0.5">Click "Add New Test" to register a new investigation into the master catalog.</p>
                             </td>
                         </tr>
                     <?php else: ?>

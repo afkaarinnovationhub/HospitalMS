@@ -557,9 +557,8 @@ include __DIR__ . '/../components/header.php';
                 <div class="flex justify-between items-center border-b border-outline-variant pb-sm">
                     <h3 class="font-headline-sm text-base sm:text-headline-sm text-on-surface font-bold flex items-center gap-2">
                         <span class="material-symbols-outlined text-primary">person_search</span>
-                        Patient Baseline Info &amp; Medical History (Xogta Bukaanka ee Dhakhtarka)
+                        Patient Info & Medical History
                     </h3>
-                    <span class="text-[11px] text-on-surface-variant">Permanent Medical Record</span>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -644,19 +643,19 @@ include __DIR__ . '/../components/header.php';
                 </h3>
 
                 <div>
-                    <label class="block font-label-md text-xs text-on-surface-variant mb-xs font-semibold">Subjective: Chief Complaint &amp; History of Present Illness (HPI)</label>
-                    <textarea name="subjective_notes" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-2.5 text-xs text-on-surface focus:border-primary outline-none resize-none" rows="3" placeholder="Patient reports fever, chills, body aches, and persistent cough for 4 days..."><?php echo e($subjectiveVal); ?></textarea>
+                    <label class="block font-label-md text-xs text-on-surface-variant mb-xs font-semibold">Subjective: CABASHADA BUKAANKA</label>
+                    <textarea name="subjective_notes" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-2.5 text-xs text-on-surface focus:border-primary outline-none resize-none" rows="3" placeholder="Halkan ku qor waxaa uu ka cabanaayo ama ka sheeganayo"><?php echo e($subjectiveVal); ?></textarea>
                 </div>
 
                 <div>
-                    <label class="block font-label-md text-xs text-on-surface-variant mb-xs font-semibold">Objective: Physical Findings &amp; Clinical Observations</label>
-                    <textarea name="objective_findings" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-2.5 text-xs text-on-surface focus:border-primary outline-none resize-none" rows="2" placeholder="Chest clear to auscultation bilaterally, abdomen soft non-tender, throat slightly hyperemic..."><?php echo e($objectiveVal); ?></textarea>
+                    <label class="block font-label-md text-xs text-on-surface-variant mb-xs font-semibold">Objective: WAXA AAD KU ARAGTAY BUKAANKA</label>
+                    <textarea name="objective_findings" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-2.5 text-xs text-on-surface focus:border-primary outline-none resize-none" rows="2" placeholder="halkan ku qor waxa aad bukanka ku aragtay"><?php echo e($objectiveVal); ?></textarea>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                        <label class="block font-label-md text-xs text-on-surface-variant mb-xs font-semibold">Primary Assessment / Diagnosis *</label>
-                        <input name="assessment_diagnosis" required value="<?php echo e($assessmentVal); ?>" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-2 text-xs text-on-surface focus:border-primary outline-none font-semibold text-primary" placeholder="e.g. Acute Uncomplicated Malaria / Bronchitis" type="text">
+                        <label class="block font-label-md text-xs text-on-surface-variant mb-xs font-semibold">Primary Assessment / Diagnosis</label>
+                        <input name="assessment_diagnosis" value="<?php echo e($assessmentVal); ?>" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-2 text-xs text-on-surface focus:border-primary outline-none font-semibold text-primary" placeholder="e.g. Acute Uncomplicated Malaria / Bronchitis" type="text">
                     </div>
                     <div>
                         <label class="block font-label-md text-xs text-on-surface-variant mb-xs font-semibold">Secondary / Differential Diagnosis</label>
@@ -670,7 +669,7 @@ include __DIR__ . '/../components/header.php';
                 <div class="flex justify-between items-center border-b border-outline-variant pb-sm">
                     <h3 class="font-headline-sm text-base sm:text-headline-sm text-on-surface font-bold flex items-center gap-2">
                         <span class="material-symbols-outlined text-primary">prescriptions</span>
-                        E-Prescribing (Daawooyinka loo qorayo Bukaanka)
+                        E-Prescribing
                     </h3>
                     <button type="button" onclick="addMedicationRow()" class="px-3 py-1 bg-surface-container border border-outline-variant hover:bg-surface-container-high text-xs font-semibold rounded-lg flex items-center gap-1 cursor-pointer">
                         <span class="material-symbols-outlined text-[16px] text-primary">add_circle</span>
@@ -720,7 +719,6 @@ include __DIR__ . '/../components/header.php';
                     </h3>
                     <span class="text-[10px] bg-secondary-fixed text-on-secondary-fixed px-2 py-0.5 rounded-full font-bold">Test Catalog</span>
                 </div>
-                <p class="text-xs text-on-surface-variant">Select diagnostic tests to send patient to Lab &amp; Billing before final prescription:</p>
 
                 <div class="space-y-1.5 text-xs max-h-60 overflow-y-auto custom-scrollbar pr-1">
                     <?php foreach ($labCatalog as $lt): ?>
@@ -748,7 +746,7 @@ include __DIR__ . '/../components/header.php';
 
                 <div>
                     <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Clinical Instructions / Notes for Lab Tech</label>
-                    <textarea name="clinical_notes" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-2 text-xs text-on-surface focus:border-primary outline-none resize-none" rows="2" placeholder="e.g. Suspected malaria & typhoid fever. Patient has high grade fever for 4 days."></textarea>
+                    <textarea name="clinical_notes" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-2 text-xs text-on-surface focus:border-primary outline-none resize-none" rows="2" placeholder="e.g. Suspected malaria & typhoid fever."></textarea>
                 </div>
 
                 <button type="submit" name="action" value="order_lab_tests" class="w-full py-3 px-4 bg-secondary hover:bg-on-secondary-container text-on-secondary font-bold rounded-xl text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all">
@@ -765,12 +763,12 @@ include __DIR__ . '/../components/header.php';
                 </h3>
                 <div>
                     <label class="block font-label-md text-xs text-on-surface-variant mb-xs font-semibold">Doctor Clinical Advice / Plan</label>
-                    <textarea name="treatment_plan" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-2 text-xs text-on-surface focus:border-primary outline-none resize-none" rows="2" placeholder="Drink plenty of fluids, rest for 3 days, return if fever exceeds 39°C..."><?php echo e($treatmentPlanVal); ?></textarea>
+                    <textarea name="treatment_plan" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-2 text-xs text-on-surface focus:border-primary outline-none resize-none" rows="2" placeholder="Drink plenty of fluids, rest for 3 days."><?php echo e($treatmentPlanVal); ?></textarea>
                 </div>
                 <div>
                     <div class="flex items-center justify-between mb-xs">
                         <label class="block font-label-md text-xs text-on-surface-variant font-semibold">
-                            Follow-up Appointment Date <span class="text-on-surface-variant/70 font-normal">(Optional / Ikhtiyaari)</span>
+                            Follow-up Appointment Date <span class="text-on-surface-variant/70 font-normal">(Optional)</span>
                         </label>
                         <button type="button" onclick="document.getElementById('follow_up_date_input').value = ''" class="text-[11px] text-error hover:underline flex items-center gap-0.5 cursor-pointer" title="Ka noqo ama ha u qabanin wax ballan ah">
                             <span class="material-symbols-outlined text-[14px]">event_busy</span>
@@ -785,10 +783,6 @@ include __DIR__ . '/../components/header.php';
                         <button type="button" onclick="setFollowUpDays(14)" class="text-[10px] px-2 py-0.5 rounded bg-surface-container border border-outline-variant hover:bg-primary hover:text-on-primary transition-colors cursor-pointer">+2 Weeks</button>
                         <button type="button" onclick="setFollowUpDays(30)" class="text-[10px] px-2 py-0.5 rounded bg-surface-container border border-outline-variant hover:bg-primary hover:text-on-primary transition-colors cursor-pointer">+1 Month</button>
                     </div>
-                    <p class="text-[11px] text-on-surface-variant/80 mt-1.5 flex items-center gap-1">
-                        <span class="material-symbols-outlined text-[14px] text-primary">info</span>
-                        Kaliya buuxi haddii bukaanku u baahan yahay ballan dib-u-eegis ah. Haddii aadan taariikh dooran, wax ballan ah lama diiwaangelinayo.
-                    </p>
                 </div>
             </div>
 

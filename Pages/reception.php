@@ -243,13 +243,7 @@ include __DIR__ . '/../components/header.php';
                             <h3 class="font-bold text-sm sm:text-base text-on-surface">
                                 Ballamaha Dib-u-eegista ee Maanta (Today's Scheduled Follow-ups)
                             </h3>
-                            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                                <?php echo count($todayFollowUps); ?> Scheduled
-                            </span>
                         </div>
-                        <p class="text-xs text-on-surface-variant mt-0.5">
-                            Bukaannada uu dhakhtarku ballan u qabtay maanta waxay helayaan <strong>Check-in lacag la'aan ah ($0.00 Free Waiver)</strong>.
-                        </p>
                     </div>
                 </div>
             </div>
@@ -258,7 +252,6 @@ include __DIR__ . '/../components/header.php';
                 <div class="py-6 text-center text-on-surface-variant text-xs space-y-1">
                     <span class="material-symbols-outlined text-3xl text-outline mb-1">event_available</span>
                     <p class="font-semibold text-sm">Ma jiraan bukaan maanta ballan dib-u-eegis ah u qorshaysan.</p>
-                    <p class="text-[11px]">Haddii bukaan aan ballan lahayn yimaado, fadlan ka raadi baarka sare oo lacagta caadiga ah geli.</p>
                 </div>
             <?php else: ?>
                 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">

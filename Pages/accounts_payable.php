@@ -162,7 +162,6 @@ include __DIR__ . '/../components/header.php';
                     <span class="material-symbols-outlined text-primary text-[20px]">store</span>
                     Outstanding Supplier Payables
                 </h3>
-                <p class="text-[11px] text-on-surface-variant">Click any supplier or amount to view their full statement, purchase orders, and payment vouchers.</p>
             </div>
             <span class="text-xs font-bold text-error bg-error-container/40 px-2.5 py-1 rounded-full w-fit">
                 <?php echo count($creditorAccounts); ?> Creditor Account(s)

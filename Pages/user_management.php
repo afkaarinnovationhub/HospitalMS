@@ -364,7 +364,6 @@ include __DIR__ . '/../components/header.php';
                 <span class="material-symbols-outlined text-primary text-[24px]">person_add</span>
                 <div>
                     <h3 class="font-headline-sm text-base font-bold text-on-surface">Register New Staff Account</h3>
-                    <p class="text-xs text-on-surface-variant">Create a system login with assigned operational privileges.</p>
                 </div>
             </div>
             <button type="button" onclick="closeCreateUserModal()" class="text-on-surface-variant hover:text-on-surface p-1 rounded-lg cursor-pointer">

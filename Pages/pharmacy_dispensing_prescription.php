@@ -91,7 +91,7 @@ include __DIR__ . '/../components/header.php';
         <div>
             <h2 class="font-headline-lg text-xl sm:text-headline-lg font-bold text-on-surface">Pharmacy Dispensing &amp; E-Prescriptions</h2>
             <p class="font-body-md text-xs sm:text-body-md text-on-surface-variant mt-xs">
-                Welcome back, <strong class="text-primary font-bold"><?php echo e($currentUser['full_name'] ?? 'Pharmacist'); ?></strong> • Verify doctor orders, dispense medications, and manage retail checkout.
+                Welcome back, <strong class="text-primary font-bold"><?php echo e($currentUser['full_name'] ?? 'Pharmacist'); ?></strong>
             </p>
         </div>
         <div class="flex flex-wrap gap-sm w-full sm:w-auto">
@@ -139,7 +139,6 @@ include __DIR__ . '/../components/header.php';
                 <div class="bg-surface border border-outline-variant rounded-xl p-8 text-center shadow-sm">
                     <span class="material-symbols-outlined text-4xl text-secondary mb-2">check_circle</span>
                     <h3 class="font-bold text-base text-on-surface">Queue is Clear!</h3>
-                    <p class="text-xs text-on-surface-variant mt-1">There are no pending doctor prescriptions waiting to be dispensed right now.</p>
                     <button type="button" onclick="openWalkInModal()" class="mt-4 px-4 py-2 bg-primary text-on-primary rounded-lg text-xs font-semibold cursor-pointer">
                         Open Walk-in Direct Sale
                     </button>
@@ -317,9 +316,8 @@ include __DIR__ . '/../components/header.php';
                             <div class="flex justify-between items-center">
                                 <p class="font-bold text-xs text-primary flex items-center gap-1">
                                     <span class="material-symbols-outlined text-[16px]">payments</span>
-                                    Prescription Billing &amp; Payment (Xisaabta Dawada, Lacag Bixinta &amp; Deynta)
+                                    Prescription Billing &amp; Payment.
                                 </p>
-                                <span class="text-[11px] text-on-surface-variant font-medium">Physical stock is deducted ONLY for units dispensed now.</span>
                             </div>
 
                             <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
@@ -355,9 +353,9 @@ include __DIR__ . '/../components/header.php';
                                 <div>
                                     <label class="block text-[11px] text-on-surface-variant mb-0.5 font-semibold">Payment Method</label>
                                     <select name="payment_method" class="w-full bg-surface border border-outline-variant rounded p-1.5 text-xs">
-                                        <option value="cash">Cash</option>
-                                        <option value="mobile">Mobile Money (EVC / Zaad)</option>
-                                        <option value="card">Card / POS</option>
+                                        <option value="cash">Cash on Hand (Khasnadda)</option>
+                                        <option value="mobile">Mobile Money (EVC Plus / E-Dahab)</option>
+                                        <option value="card">Bank Account (Commercial Banks)</option>
                                     </select>
                                 </div>
                                 <div>
@@ -450,7 +448,6 @@ include __DIR__ . '/../components/header.php';
                 <span class="material-symbols-outlined text-secondary text-[26px]">point_of_sale</span>
                 <div>
                     <h3 class="font-headline-sm text-lg font-bold text-on-surface">Walk-in / Direct OTC Pharmacy Sale</h3>
-                    <p class="text-xs text-on-surface-variant">Point of sale checkout for direct customers with discounts &amp; debt support.</p>
                 </div>
             </div>
             <button type="button" onclick="closeWalkInModal()" class="text-on-surface-variant hover:text-on-surface p-1 rounded-lg cursor-pointer">
@@ -472,9 +469,8 @@ include __DIR__ . '/../components/header.php';
                     <div class="flex justify-between items-center mb-1">
                         <label class="block font-bold text-xs text-primary flex items-center gap-1.5">
                             <span class="material-symbols-outlined text-[17px]">person_search</span>
-                            Baar Bukaan Hore / Registered Patient (Sida Reception-ka)
+                            Baar Bukaan Hore / Registered Patient
                         </label>
-                        <span class="text-[10px] text-on-surface-variant font-medium">Magac, Taleefan, ama MRN</span>
                     </div>
                     <div class="relative">
                         <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[18px] pointer-events-none">search</span>
