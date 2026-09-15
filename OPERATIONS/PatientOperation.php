@@ -723,6 +723,10 @@ class PatientOperation
             error_log('[HPMS INTAKE BILLING ERROR] ' . $e->getMessage());
         }
 
+        $initBillingStatus = ($consultationFee > 0.0) ? 'unpaid' : 'paid';
+        $pdo->prepare("UPDATE patient_queues SET billing_status = ? WHERE id = ?")->execute([$initBillingStatus, $queueId]);
+        $queueRecord['billing_status'] = $initBillingStatus;
+
         $doctorName = 'Next Available Doctor';
         if ($doctorId) {
             $stmtDoc = $pdo->prepare("SELECT full_name FROM users WHERE id = ?");

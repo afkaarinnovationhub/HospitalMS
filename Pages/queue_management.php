@@ -104,8 +104,8 @@ foreach ($doctors as $doc) {
     $docCounts[$dId] = (int)$stmtC->fetchColumn();
 }
 
-$pageTitle = 'Queue Management - MedCore Systems';
-$headerTitle = 'MedCore Management - Patient Queue';
+$pageTitle = 'Queue Management - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Patient Queue';
 $activePage = 'queue';
 
 include __DIR__ . '/../components/header.php';
@@ -115,14 +115,7 @@ include __DIR__ . '/../components/header.php';
 <main class="p-4 sm:p-6 lg:p-lg pb-6 flex-1 overflow-y-auto bg-background custom-scrollbar">
     <div class="mb-lg flex flex-col sm:flex-row justify-between items-start sm:items-end gap-md">
         <div>
-            <h2 class="font-headline-lg text-xl sm:text-headline-lg font-bold text-on-surface">Queue Management &amp; Patient Flow</h2>
-            <p class="font-body-md text-xs sm:text-body-md text-on-surface-variant mt-xs">
-                <?php if ($isDoctorRole): ?>
-                    Real-time live queue of patients waiting for your consultation room.
-                <?php else: ?>
-                    Real-time outpatient flow, priority triage, and consultation room routing.
-                <?php endif; ?>
-            </p>
+            <h2 class="font-headline-lg text-xl sm:text-headline-lg font-bold text-on-surface">Queue Management</h2>
         </div>
         <div class="flex flex-wrap gap-sm w-full sm:w-auto">
             <?php if ($isDoctorRole): ?>
@@ -138,7 +131,7 @@ include __DIR__ . '/../components/header.php';
             <?php endif; ?>
             <a href="patient_registration.php" class="flex-1 sm:flex-none justify-center px-md py-2 border border-outline-variant text-on-surface font-label-md text-xs sm:text-label-md rounded-md hover:bg-surface-container transition-colors flex items-center gap-xs font-medium">
                 <span class="material-symbols-outlined text-[18px]">groups</span>
-                Patients Master
+                Patients
             </a>
         </div>
     </div>
@@ -616,9 +609,9 @@ include __DIR__ . '/../components/header.php';
         <!-- Printable Slip Card -->
         <div id="printable-token-slip" class="bg-white text-black p-5 rounded-xl border border-dashed border-gray-300 font-mono text-center space-y-2 shadow-inner">
             <div class="border-b border-dashed border-gray-300 pb-2">
-                <h4 class="font-bold text-base tracking-wide uppercase">MedCore Hospital</h4>
+                <h4 class="font-bold text-base tracking-wide uppercase"><?php echo htmlspecialchars(HOSPITAL_NAME); ?></h4>
                 <p class="text-[10px] text-gray-600">Main Outpatient Clinic • Queue System</p>
-                <p class="text-[9px] text-gray-500">Tel: +252 (0) 61 000-0000</p>
+                <p class="text-[9px] text-gray-500">Tel: <?php echo htmlspecialchars(HOSPITAL_PHONE); ?> • <?php echo htmlspecialchars(HOSPITAL_ADDRESS); ?></p>
             </div>
 
             <div class="py-2">
@@ -694,7 +687,7 @@ include __DIR__ . '/../components/header.php';
 
         <div id="printable-refund-slip" class="bg-white text-black p-5 rounded-xl border border-dashed border-gray-300 font-mono text-center space-y-2 shadow-inner">
             <div class="border-b border-dashed border-gray-300 pb-2">
-                <h4 class="font-bold text-base tracking-wide uppercase">MedCore Hospital</h4>
+                <h4 class="font-bold text-base tracking-wide uppercase"><?php echo htmlspecialchars(HOSPITAL_NAME); ?></h4>
                 <p class="text-[11px] text-gray-600">Patient Cash Refund Voucher</p>
             </div>
 

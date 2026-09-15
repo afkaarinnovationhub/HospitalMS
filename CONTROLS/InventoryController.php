@@ -362,5 +362,70 @@ class InventoryController
             return ['error' => $e->getMessage()];
         }
     }
+
+    /**
+     * Handles stock reconciliation / physical inventory count adjustment.
+     *
+     * @param array $post
+     * @return array|null
+     */
+    public static function handleStockAdjustment(array $post): ?array
+    {
+        initSecureSession();
+        requireLogin();
+        requireRole([ROLE_SUPERADMIN_ICT, ROLE_MANAGER, ROLE_PHARMACY]);
+
+        if (!verifyCsrfToken($post['csrf_token'] ?? null)) {
+            return ['error' => 'Security token invalid or expired. Please refresh and try again.'];
+        }
+
+        $currentUser = getCurrentUser();
+        $userId = (int)($currentUser['id'] ?? 1);
+
+        try {
+            $medicationId = (int)($post['medication_id'] ?? 0);
+            $batchId      = !empty($post['batch_id']) ? (int)$post['batch_id'] : null;
+            $countedStock = isset($post['counted_stock']) ? (int)$post['counted_stock'] : -1;
+            $reason       = sanitizeString($post['reason'] ?? 'physical_count');
+            $notes        = sanitizeString($post['notes'] ?? '');
+
+            if ($medicationId <= 0) {
+                return ['error' => 'Please select a medication to adjust.'];
+            }
+
+            if ($countedStock < 0) {
+                return ['error' => 'Physical counted stock cannot be negative.'];
+            }
+
+            $res = InventoryOperation::adjustStock([
+                'medication_id' => $medicationId,
+                'batch_id'      => $batchId,
+                'counted_stock' => $countedStock,
+                'reason'        => $reason,
+                'notes'         => $notes,
+            ], $userId);
+
+            $varSign = $res['variance'] > 0 ? "+{$res['variance']}" : "{$res['variance']}";
+            $msg = sprintf(
+                'Stock for [%s] successfully adjusted from %d to %d units (%s units). Ledger journal entry posted.',
+                $res['medication_name'],
+                $res['prior_stock'],
+                $res['counted_stock'],
+                $varSign
+            );
+
+            setFlashMessage('success', $msg);
+            $redirectUrl = !empty($post['redirect']) ? $post['redirect'] : 'inventory_management.php';
+            if (!defined('HPMS_TESTING')) {
+                safeRedirect($redirectUrl);
+            }
+            return ['success' => true, 'data' => $res];
+
+        } catch (Exception $e) {
+            error_log('[HPMS STOCK ADJUSTMENT CONTROLLER ERROR] ' . $e->getMessage());
+            return ['error' => $e->getMessage()];
+        }
+    }
 }
+
 

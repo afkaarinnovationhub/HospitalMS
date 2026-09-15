@@ -23,7 +23,7 @@ $userTitle   = $currentUser['professional_title'] ?? getRoleDisplayName($userRol
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
-    <title><?php echo isset($pageTitle) ? htmlspecialchars($pageTitle) : 'MedCore Systems - Clinical Operations'; ?></title>
+    <title><?php echo isset($pageTitle) ? htmlspecialchars($pageTitle) : htmlspecialchars(HOSPITAL_NAME . ' - Clinical Operations'); ?></title>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Courier+Prime:wght@400;700&amp;display=swap" rel="stylesheet">
@@ -210,7 +210,7 @@ $userTitle   = $currentUser['professional_title'] ?? getRoleDisplayName($userRol
                 <span class="material-symbols-outlined text-[26px]">menu</span>
             </button>
             <span class="font-headline-sm text-sm sm:text-headline-sm font-bold text-primary dark:text-primary-fixed truncate">
-                <?php echo isset($headerTitle) ? htmlspecialchars($headerTitle) : 'MedCore Management'; ?>
+                <?php echo isset($headerTitle) ? htmlspecialchars($headerTitle) : htmlspecialchars(HOSPITAL_NAME); ?>
             </span>
         </div>
 
@@ -235,7 +235,7 @@ $userTitle   = $currentUser['professional_title'] ?? getRoleDisplayName($userRol
             </div>
 
             <!-- Prominent Sign Out Button in Header -->
-            <a href="logout.php" class="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-error-container/50 hover:bg-error-container text-on-error-container hover:text-error border border-error/20 font-semibold text-xs transition-colors shadow-xs" title="Sign Out of MedCore Systems">
+            <a href="logout.php" class="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-error-container/50 hover:bg-error-container text-on-error-container hover:text-error border border-error/20 font-semibold text-xs transition-colors shadow-xs" title="Sign Out of <?php echo htmlspecialchars(HOSPITAL_NAME); ?>">
                 <span class="material-symbols-outlined text-[18px]">logout</span>
                 <span class="hidden sm:inline">Sign Out</span>
             </a>

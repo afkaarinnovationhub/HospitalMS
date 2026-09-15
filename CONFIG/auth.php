@@ -90,6 +90,9 @@ function getCurrentUser(bool $forceFreshFromDb = true): ?array
  */
 function requireLogin(string $redirectUrl = 'login.php'): void
 {
+    if (defined('HPMS_TESTING')) {
+        return;
+    }
     if (!isLoggedIn()) {
         setFlashMessage('error', 'Please log in to access this page.');
         safeRedirect($redirectUrl);
@@ -153,7 +156,7 @@ function getUserAllowedNavItems(string $role): array
     if ($role === ROLE_SUPERADMIN_ICT) {
         return [
             'dashboard', 'users', 'reception', 'doctor_dashboard', 'doctors', 'patients',
-            'queue', 'consultations', 'laboratory', 'pharmacy', 'inventory', 'suppliers',
+            'queue', 'consultations', 'laboratory', 'lab_catalog', 'lab_categories', 'pharmacy', 'inventory', 'suppliers',
             'billing', 'accounting', 'expenses', 'reports'
         ];
     }
@@ -162,7 +165,7 @@ function getUserAllowedNavItems(string $role): array
     if ($role === ROLE_MANAGER) {
         return [
             'dashboard', 'users', 'reception', 'doctor_dashboard', 'patients',
-            'queue', 'consultations', 'laboratory', 'pharmacy', 'inventory', 'suppliers',
+            'queue', 'consultations', 'laboratory', 'lab_catalog', 'lab_categories', 'pharmacy', 'inventory', 'suppliers',
             'billing', 'accounting', 'expenses', 'reports'
         ];
     }
@@ -188,10 +191,10 @@ function getUserAllowedNavItems(string $role): array
         ];
     }
 
-    // 6. Laboratory: Laboratory Worklist
+    // 6. Laboratory: Laboratory Worklist, Tests Catalog, and Categories
     if ($role === ROLE_LABORATORY) {
         return [
-            'laboratory'
+            'laboratory', 'lab_catalog', 'lab_categories'
         ];
     }
 

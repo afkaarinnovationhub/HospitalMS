@@ -60,8 +60,8 @@ if ($selectedInvId <= 0 && !empty($pendingQueue)) {
 $activeInvoice = ($selectedInvId > 0) ? BillingOperation::getInvoiceById($selectedInvId) : null;
 $paidHistory   = BillingOperation::getPaidInvoicesHistory(date('Y-m-01'), date('Y-m-d'), 10);
 
-$pageTitle = 'Billing & Payments Hub - MedCore Systems';
-$headerTitle = 'MedCore Management - Billing & Payments';
+$pageTitle = 'Billing & Payments Hub - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Billing & Payments';
 $activePage = 'billing';
 
 include __DIR__ . '/../components/header.php';
@@ -121,7 +121,6 @@ include __DIR__ . '/../components/header.php';
             </div>
             <div class="mt-3">
                 <h3 class="text-2xl font-bold text-secondary font-mono">$<?php echo number_format((float)$kpis['collected_today'], 2); ?></h3>
-                <p class="text-[11px] text-on-surface-variant mt-1">Cash, Zaad &amp; Card settlements</p>
             </div>
         </div>
 
@@ -135,7 +134,6 @@ include __DIR__ . '/../components/header.php';
             </div>
             <div class="mt-3">
                 <h3 class="text-2xl font-bold text-primary font-mono">$<?php echo number_format((float)$kpis['billed_today'], 2); ?></h3>
-                <p class="text-[11px] text-on-surface-variant mt-1">Gross bills generated</p>
             </div>
         </div>
 
@@ -149,7 +147,6 @@ include __DIR__ . '/../components/header.php';
             </div>
             <div class="mt-3">
                 <h3 class="text-2xl font-bold text-amber-600 font-mono"><?php echo $kpis['pending_count']; ?></h3>
-                <p class="text-[11px] text-on-surface-variant mt-1">Awaiting cashier checkout</p>
             </div>
         </div>
 
@@ -163,7 +160,6 @@ include __DIR__ . '/../components/header.php';
             </div>
             <div class="mt-3">
                 <h3 class="text-2xl font-bold text-error font-mono">$<?php echo number_format((float)$kpis['uncollected_due'], 2); ?></h3>
-                <p class="text-[11px] text-on-surface-variant mt-1">Pending collection total</p>
             </div>
         </div>
     </div>
@@ -178,7 +174,6 @@ include __DIR__ . '/../components/header.php';
                         <span class="material-symbols-outlined text-primary text-[18px]">queue</span>
                         Pending Bills Queue (<?php echo count($pendingQueue); ?>)
                     </h3>
-                    <p class="text-[11px] text-on-surface-variant">Select an invoice to process payment.</p>
                 </div>
             </div>
 
@@ -227,13 +222,14 @@ include __DIR__ . '/../components/header.php';
                            class="block p-3 rounded-xl border transition-all cursor-pointer <?php echo $isSelected ? 'bg-primary/10 border-primary shadow-xs' : 'bg-surface-container-lowest border-outline-variant hover:bg-surface-container-low'; ?>">
                             <div class="flex items-start justify-between gap-2">
                                 <div>
-                                    <div class="flex items-center gap-1.5">
+                                    <div class="flex items-center gap-1.5 flex-wrap">
                                         <span class="font-mono font-bold text-xs text-primary"><?php echo e($inv['invoice_number']); ?></span>
                                         <?php if (!empty($inv['token_number'])): ?>
                                             <span class="bg-amber-500/20 text-amber-800 dark:text-amber-300 font-mono font-bold text-[10px] px-1.5 py-0.5 rounded">
                                                 <?php echo e($inv['token_number']); ?>
                                             </span>
                                         <?php endif; ?>
+
                                     </div>
                                     <h4 class="font-bold text-xs text-on-surface mt-0.5"><?php echo e($inv['customer_name']); ?></h4>
                                     <p class="text-[10px] text-on-surface-variant"><?php echo e($inv['mrn'] ?: 'Outpatient'); ?> • <?php echo date('g:i A', strtotime($inv['created_at'])); ?></p>
@@ -321,6 +317,8 @@ include __DIR__ . '/../components/header.php';
                             <span class="text-[10px] text-secondary font-semibold">Consultation Unit</span>
                         </div>
                     </div>
+
+
 
                     <!-- Itemized Charges Table -->
                     <div class="overflow-x-auto custom-scrollbar">
@@ -410,17 +408,21 @@ include __DIR__ . '/../components/header.php';
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Amount to Pay ($ USD) *</label>
-                                    <input name="paid_amount" id="checkout-amount-input" type="number" step="0.01" min="0.00" max="<?php echo (float)$activeInvoice['due_amount']; ?>" value="<?php echo (float)$activeInvoice['due_amount']; ?>" required class="w-full bg-surface border border-outline-variant rounded-lg p-2 text-sm font-mono font-bold text-on-surface focus:border-primary outline-none">
+                                    <input name="paid_amount" id="checkout-amount-input" type="number" step="0.01" min="0.00" max="<?php echo (float)$activeInvoice['due_amount']; ?>" value="<?php echo (float)$activeInvoice['due_amount']; ?>" oninput="updatePaymentNotice(<?php echo (float)$activeInvoice['due_amount']; ?>)" required class="w-full bg-surface border border-outline-variant rounded-lg p-2 text-sm font-mono font-bold text-on-surface focus:border-primary outline-none">
                                 </div>
                                 <div>
                                     <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Payment Method *</label>
-                                    <select name="payment_method" required class="w-full bg-surface border border-outline-variant rounded-lg p-2 text-xs text-on-surface focus:border-primary outline-none">
+                                    <select name="payment_method" id="checkout-payment-method" onchange="updatePaymentNotice(<?php echo (float)$activeInvoice['due_amount']; ?>)" required class="w-full bg-surface border border-outline-variant rounded-lg p-2 text-xs text-on-surface focus:border-primary outline-none">
                                         <option value="cash">1010 - Cash on Hand (Khasnadda)</option>
                                         <option value="mobile">1020 - Mobile Money (Zaad / EVC Plus)</option>
                                         <option value="bank">1030 - Bank Account (Commercial Banks)</option>
-                                        <option value="credit">1100 - Patient Credit / Accounts Receivable</option>
+                                        <option value="credit">1100 - Patient Credit / Accounts Receivable (Deyn)</option>
                                     </select>
                                 </div>
+                            </div>
+
+                            <!-- Live Partial Payment / Deyn Notification -->
+                            <div id="payment-deyn-notice" class="hidden p-2.5 rounded-xl border text-xs font-semibold">
                             </div>
 
                             <div>
@@ -503,9 +505,10 @@ include __DIR__ . '/../components/header.php';
         <!-- Receipt Sheet Content (Print Target) -->
         <div id="printable-receipt" class="space-y-4 text-xs">
             <div class="text-center border-b border-outline-variant pb-3">
-                <h3 class="font-headline-md font-bold text-base text-primary">MedCore Healthcare Systems</h3>
-                <p class="text-[11px] text-on-surface-variant">Hospital Outpatient &amp; Pharmacy Department</p>
-                <p class="text-[10px] text-on-surface-variant font-mono">Receipt #: <?php echo e($activeInvoice['invoice_number']); ?></p>
+                <h3 class="font-headline-md font-bold text-base text-primary"><?php echo e(HOSPITAL_NAME); ?></h3>
+                <p class="text-[11px] text-on-surface-variant"><?php echo e(defined('HOSPITAL_TAGLINE') ? HOSPITAL_TAGLINE : 'Outpatient & Clinical Services'); ?></p>
+                <p class="text-[10px] text-on-surface-variant font-mono"><?php echo e(HOSPITAL_PHONE); ?> &bull; <?php echo e(HOSPITAL_ADDRESS); ?></p>
+                <p class="text-[10px] text-on-surface-variant font-mono mt-1">Receipt #: <?php echo e($activeInvoice['invoice_number']); ?></p>
                 <p class="text-[10px] text-on-surface-variant">Date: <?php echo date('M d, Y g:i A'); ?></p>
             </div>
 
@@ -534,7 +537,7 @@ include __DIR__ . '/../components/header.php';
             </div>
 
             <div class="text-center pt-3 border-t border-outline-variant text-[10px] text-on-surface-variant">
-                <p>Thank you for choosing MedCore Healthcare.</p>
+                <p>Thank you for choosing <?php echo e(HOSPITAL_NAME); ?>.</p>
                 <p class="font-mono mt-0.5">Payment Verified &amp; Ledger Synchronized</p>
             </div>
         </div>
@@ -582,9 +585,9 @@ include __DIR__ . '/../components/header.php';
         <!-- Printable Slip Card -->
         <div id="printable-paid-token-slip" class="bg-white text-black p-5 rounded-xl border border-dashed border-gray-300 font-mono text-center space-y-2 shadow-inner">
             <div class="border-b border-dashed border-gray-300 pb-2">
-                <h4 class="font-bold text-base tracking-wide uppercase">MedCore Hospital</h4>
+                <h4 class="font-bold text-base tracking-wide uppercase"><?php echo htmlspecialchars(HOSPITAL_NAME); ?></h4>
                 <p id="ppt-header-dept" class="text-[10px] text-gray-600">Main Outpatient Clinic • Cashier &amp; Triage</p>
-                <p class="text-[9px] text-gray-500">Tel: +252 (0) 61 000-0000</p>
+                <p class="text-[9px] text-gray-500">Tel: <?php echo htmlspecialchars(HOSPITAL_PHONE); ?> • <?php echo htmlspecialchars(HOSPITAL_ADDRESS); ?></p>
             </div>
 
             <!-- Receipt Category Badge -->
@@ -733,6 +736,48 @@ include __DIR__ . '/../components/header.php';
 </style>
 
 <script>
+    function setFullPayment(due) {
+        const input = document.getElementById('checkout-amount-input');
+        if (input) {
+            input.value = parseFloat(due).toFixed(2);
+            updatePaymentNotice(due);
+        }
+    }
+
+    function updatePaymentNotice(dueAmount) {
+        const input = document.getElementById('checkout-amount-input');
+        const notice = document.getElementById('payment-deyn-notice');
+        const methodSelect = document.getElementById('checkout-payment-method');
+        if (!input || !notice) return;
+
+        const paidVal = parseFloat(input.value) || 0.0;
+        const diff = Math.max(0, dueAmount - paidVal);
+
+        if (diff > 0.005) {
+            notice.classList.remove('hidden');
+            notice.className = 'p-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center gap-2';
+            notice.innerHTML = `
+                <span class="material-symbols-outlined text-amber-600 text-[18px]">warning</span>
+                <div>
+                    <p class="font-bold">⚠️ Qeyb-bixin (Partial Settlement / Deyn)</p>
+                    <p class="text-[11px] mt-0.5">Bukaanku wuxuu bixinayaa <strong>$${paidVal.toFixed(2)}</strong>. Haraaga ah <strong>$${diff.toFixed(2)}</strong> waxaa toos loogu qori doonaa diiwaanka Deyn Bukaanka (Accounts Receivable 1100), adeegana waa loo fasaxayaa.</p>
+                </div>
+            `;
+        } else if (methodSelect && methodSelect.value === 'credit') {
+            notice.classList.remove('hidden');
+            notice.className = 'p-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center gap-2';
+            notice.innerHTML = `
+                <span class="material-symbols-outlined text-amber-600 text-[18px]">account_balance_wallet</span>
+                <div>
+                    <p class="font-bold">Deyn 100% (Accounts Receivable 1100)</p>
+                    <p class="text-[11px] mt-0.5">Wadarta lacagta ($${dueAmount.toFixed(2)}) waxaa toos loogu qori doonaa Deyn Bukaanka (A/R 1100), adeegana waa loo fasaxayaa.</p>
+                </div>
+            `;
+        } else {
+            notice.classList.add('hidden');
+        }
+    }
+
     function openCancelInvoiceModal() {
         const modal = document.getElementById('cancel-invoice-modal');
         if (modal) modal.classList.remove('hidden');
@@ -778,7 +823,6 @@ include __DIR__ . '/../components/header.php';
         document.getElementById('ppt-inv').textContent = data.invoice_number || 'N/A';
         document.getElementById('ppt-time').textContent = data.time || data.date_time || new Date().toLocaleString();
 
-        // Populate items list if available
         const itemsContainer = document.getElementById('ppt-items-container');
         const itemsList = document.getElementById('ppt-items-list');
         itemsList.innerHTML = '';
@@ -826,6 +870,8 @@ include __DIR__ . '/../components/header.php';
     }
 
     document.addEventListener('DOMContentLoaded', function() {
+
+
         <?php if (!empty($printPaidTokenPayload)): ?>
         printPaidQueueTokenTicket(<?php echo json_encode($printPaidTokenPayload, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>);
         <?php endif; ?>

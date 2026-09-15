@@ -1014,4 +1014,279 @@ class InventoryOperation
             throw $e;
         }
     }
+
+    /**
+     * Generates a unique Stock Adjustment Number (e.g. ADJ-2026-0001).
+     */
+    public static function generateAdjustmentNumber(): string
+    {
+        $pdo = getDBConnection();
+        $year = date('Y');
+        $stmt = $pdo->query("SELECT COUNT(*) FROM medicine_batch_movements WHERE movement_type = 'adjustment'");
+        $nextId = ((int)$stmt->fetchColumn()) + 1;
+        return sprintf('ADJ-%s-%04d', $year, $nextId);
+    }
+
+    /**
+     * Retrieves all batches with available stock for a medication.
+     */
+    public static function getBatchesByMedicationId(int $medicationId): array
+    {
+        $pdo = getDBConnection();
+        $stmt = $pdo->prepare("
+            SELECT id, batch_number, quantity_remaining, expiry_date, unit_cost, cost_price, status
+            FROM medicine_batches
+            WHERE medication_id = ?
+            ORDER BY quantity_remaining DESC, expiry_date ASC, id ASC
+        ");
+        $stmt->execute([$medicationId]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Performs a physical inventory reconciliation & stock adjustment.
+     * Updates medications.current_stock, medicine_batches, creates audit trail in medicine_batch_movements,
+     * and posts a balanced double-entry in General Ledger (Asset 1200 vs Expense 6080 / Income 4090).
+     *
+     * @param array $data ['medication_id', 'batch_id', 'counted_stock', 'reason', 'notes']
+     * @param int|null $userId
+     * @return array
+     */
+    public static function adjustStock(array $data, ?int $userId = null): array
+    {
+        $pdo = getDBConnection();
+        AccountingOperation::seedChartOfAccountsIfEmpty();
+
+        $medicationId = (int)($data['medication_id'] ?? 0);
+        $batchId      = !empty($data['batch_id']) ? (int)$data['batch_id'] : null;
+        $countedStock = isset($data['counted_stock']) ? (int)$data['counted_stock'] : -1;
+        $reason       = sanitizeString($data['reason'] ?? 'physical_count');
+        $notes        = sanitizeString($data['notes'] ?? '');
+
+        if ($medicationId <= 0) {
+            throw new InvalidArgumentException('Please select a valid medication to adjust.');
+        }
+
+        if ($countedStock < 0) {
+            throw new InvalidArgumentException('Physical counted stock cannot be negative.');
+        }
+
+        $medication = self::getMedicationById($medicationId);
+        if (!$medication) {
+            throw new InvalidArgumentException("Medication ID {$medicationId} not found.");
+        }
+
+        $currentStock = (int)$medication['current_stock'];
+        $variance = $countedStock - $currentStock;
+
+        if ($variance === 0) {
+            throw new InvalidArgumentException("Physical counted stock ({$countedStock}) matches current recorded system stock. No variance detected.");
+        }
+
+        // Determine target batch
+        $batch = null;
+        if ($batchId && $batchId > 0) {
+            $stmtB = $pdo->prepare("SELECT * FROM medicine_batches WHERE id = ? AND medication_id = ?");
+            $stmtB->execute([$batchId, $medicationId]);
+            $batch = $stmtB->fetch();
+        }
+
+        if (!$batch) {
+            // Find active batch with remaining stock or latest batch
+            $stmtB = $pdo->prepare("
+                SELECT * FROM medicine_batches 
+                WHERE medication_id = ? 
+                ORDER BY quantity_remaining DESC, id DESC 
+                LIMIT 1
+            ");
+            $stmtB->execute([$medicationId]);
+            $batch = $stmtB->fetch();
+        }
+
+        $unitCost = 0.0;
+        if ($batch) {
+            $unitCost = (float)($batch['unit_cost'] > 0 ? $batch['unit_cost'] : $batch['cost_price']);
+        }
+        if ($unitCost <= 0) {
+            $unitCost = (float)$medication['cost_price'];
+        }
+        if ($unitCost <= 0) {
+            $unitCost = 1.00; // Fallback nominal cost
+        }
+
+        $totalCostImpact = round(abs($variance) * $unitCost, 2);
+        $adjNumber = self::generateAdjustmentNumber();
+
+        $ownsTransaction = false;
+        if (!$pdo->inTransaction()) {
+            $pdo->beginTransaction();
+            $ownsTransaction = true;
+        }
+
+        try {
+            // 1. Update medication current stock to physical counted quantity
+            $stmtUpdateMed = $pdo->prepare("UPDATE medications SET current_stock = ? WHERE id = ?");
+            $stmtUpdateMed->execute([$countedStock, $medicationId]);
+
+            // 2. Update batch remaining stock
+            $targetBatchId = null;
+            if ($batch) {
+                $targetBatchId = (int)$batch['id'];
+                $newBatchQty = (int)$batch['quantity_remaining'] + $variance;
+                if ($newBatchQty < 0) {
+                    $newBatchQty = 0;
+                }
+                $stmtUpdateBatch = $pdo->prepare("UPDATE medicine_batches SET quantity_remaining = ? WHERE id = ?");
+                $stmtUpdateBatch->execute([$newBatchQty, $targetBatchId]);
+            } else {
+                // If medication had zero batches, create an initial adjustment batch
+                $batchNum = 'BT-ADJ-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4));
+                $stmtNewB = $pdo->prepare("
+                    INSERT INTO medicine_batches (
+                        medication_id, batch_number, quantity_received, quantity_remaining,
+                        unit_cost, cost_price, received_date, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active')
+                ");
+                $stmtNewB->execute([
+                    $medicationId,
+                    $batchNum,
+                    max($countedStock, 0),
+                    max($countedStock, 0),
+                    $unitCost,
+                    $unitCost,
+                    date('Y-m-d'),
+                ]);
+                $targetBatchId = (int)$pdo->lastInsertId();
+            }
+
+            // 3. Record Audit Trail in medicine_batch_movements
+            $reasonLabels = [
+                'physical_count' => 'Physical Stock Count Discrepancy',
+                'damaged'        => 'Damaged / Broken Medicine',
+                'expired'        => 'Expired Medicine Write-off',
+                'discrepancy'    => 'Missing / Discrepancy',
+                'found'          => 'Found Stock / Surplus',
+                'correction'     => 'Data Entry Correction',
+            ];
+            $reasonLabel = $reasonLabels[$reason] ?? $reason;
+            $movementNote = "Stock Adjustment [{$adjNumber}]: Prior {$currentStock}, Counted {$countedStock} (" . ($variance > 0 ? "+{$variance}" : "{$variance}") . " units). Reason: {$reasonLabel}. " . ($notes ? "Notes: {$notes}" : "");
+
+            $stmtMbm = $pdo->prepare("
+                INSERT INTO medicine_batch_movements (
+                    batch_id, movement_type, quantity, unit_cost, total_cost, reference_transaction_id, notes, created_by
+                ) VALUES (?, 'adjustment', ?, ?, ?, ?, ?, ?)
+            ");
+            $stmtMbm->execute([
+                $targetBatchId,
+                $variance,
+                $unitCost,
+                $totalCostImpact,
+                $adjNumber,
+                $movementNote,
+                $userId,
+            ]);
+
+            // 4. Record Balanced Double-Entry General Ledger Journal
+            $inventoryAcc = AccountingOperation::getAccountByCode('1200'); // Pharmacy Inventory Asset
+            $shrinkageAcc = AccountingOperation::getAccountByCode('6080'); // Inventory Adjustment & Shrinkage Loss
+            $otherIncAcc  = AccountingOperation::getAccountByCode('4090'); // Other Operating Income
+
+            if ($inventoryAcc && ($shrinkageAcc || $otherIncAcc) && $totalCostImpact > 0) {
+                if ($variance < 0) {
+                    // Shortage: Debit Expense (6080), Credit Asset (1200)
+                    $journalItems = [
+                        [
+                            'account_id' => (int)$shrinkageAcc['id'],
+                            'debit'      => $totalCostImpact,
+                            'credit'     => 0.00,
+                            'memo'       => "Inventory shrinkage/loss: {$medication['name']} (" . abs($variance) . " units @ \${$unitCost})",
+                        ],
+                        [
+                            'account_id' => (int)$inventoryAcc['id'],
+                            'debit'      => 0.00,
+                            'credit'     => $totalCostImpact,
+                            'memo'       => "Stock reduction: {$medication['name']} (Counted: {$countedStock})",
+                        ],
+                    ];
+                } else {
+                    // Surplus: Debit Asset (1200), Credit Gain / Expense offset (6080 or 4090)
+                    $gainAccId = $shrinkageAcc ? (int)$shrinkageAcc['id'] : (int)$otherIncAcc['id'];
+                    $journalItems = [
+                        [
+                            'account_id' => (int)$inventoryAcc['id'],
+                            'debit'      => $totalCostImpact,
+                            'credit'     => 0.00,
+                            'memo'       => "Stock surplus addition: {$medication['name']} (+{$variance} units @ \${$unitCost})",
+                        ],
+                        [
+                            'account_id' => $gainAccId,
+                            'debit'      => 0.00,
+                            'credit'     => $totalCostImpact,
+                            'memo'       => "Inventory overage/surplus credited for {$medication['name']}",
+                        ],
+                    ];
+                }
+
+                AccountingOperation::recordJournalEntry(
+                    date('Y-m-d'),
+                    'manual_journal',
+                    null,
+                    "Stock Adjustment [{$adjNumber}]: {$medication['name']} (" . ($variance > 0 ? "+{$variance}" : "{$variance}") . " units)",
+                    $journalItems,
+                    $userId
+                );
+            }
+
+            if ($ownsTransaction && $pdo->inTransaction()) {
+                $pdo->commit();
+            }
+
+            return [
+                'adjustment_number' => $adjNumber,
+                'medication_id'     => $medicationId,
+                'medication_name'   => $medication['name'],
+                'prior_stock'       => $currentStock,
+                'counted_stock'     => $countedStock,
+                'variance'          => $variance,
+                'unit_cost'         => $unitCost,
+                'total_cost_impact' => $totalCostImpact,
+                'reason'            => $reason,
+            ];
+
+        } catch (Exception $e) {
+            if ($ownsTransaction && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            error_log('[HPMS STOCK ADJUSTMENT ERROR] ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Retrieves recent stock adjustments with medication and batch details.
+     */
+    public static function getStockAdjustments(?int $medicationId = null, int $limit = 20): array
+    {
+        $pdo = getDBConnection();
+        $where = ["m.movement_type = 'adjustment'"];
+        $params = [];
+        if ($medicationId) {
+            $where[] = "b.medication_id = :med_id";
+            $params[':med_id'] = $medicationId;
+        }
+        $whereClause = 'WHERE ' . implode(' AND ', $where);
+        $stmt = $pdo->prepare("
+            SELECT m.*, b.batch_number, b.expiry_date, med.name as medication_name, med.med_code, u.full_name as created_by_name
+            FROM medicine_batch_movements m
+            JOIN medicine_batches b ON m.batch_id = b.id
+            JOIN medications med ON b.medication_id = med.id
+            LEFT JOIN users u ON m.created_by = u.id
+            {$whereClause}
+            ORDER BY m.created_at DESC, m.id DESC
+            LIMIT " . (int)$limit . "
+        ");
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
 }
+

@@ -1,8 +1,5 @@
 <?php
-/**
- * MedCore Systems - Automated Phase 3 Test Suite
- * Tests Patient Registration, Auto MRN, Triage Vitals, Queue Management & Routing.
- */
+
 
 declare(strict_types=1);
 

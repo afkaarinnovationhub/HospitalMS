@@ -72,8 +72,8 @@ $activePrescription = ($selectedRxId > 0) ? PharmacyOperation::getPrescriptionBy
 $allMedications     = InventoryOperation::getMedicationsForSale();
 $patientDebts       = PharmacyOperation::getOutstandingPatientDebts();
 
-$pageTitle = 'Pharmacy Dispensing - MedCore Systems';
-$headerTitle = 'MedCore Management - Pharmacy';
+$pageTitle = 'Pharmacy Dispensing - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Pharmacy';
 $activePage = 'pharmacy';
 
 include __DIR__ . '/../components/header.php';
@@ -804,9 +804,9 @@ include __DIR__ . '/../components/header.php';
         <!-- Printable Thermal Slip Card -->
         <div id="printable-pharmacy-receipt" class="bg-white text-black p-5 rounded-xl border border-dashed border-gray-300 font-mono text-center space-y-2 shadow-inner">
             <div class="border-b border-dashed border-gray-300 pb-2">
-                <h4 class="font-bold text-base tracking-wide uppercase">MedCore Hospital</h4>
+                <h4 class="font-bold text-base tracking-wide uppercase"><?php echo htmlspecialchars(HOSPITAL_NAME); ?></h4>
                 <p id="prx-header" class="text-[10px] text-gray-600">Central Pharmacy &amp; Dispensing Unit</p>
-                <p class="text-[9px] text-gray-500">Tel: +252 (0) 61 000-0000</p>
+                <p class="text-[9px] text-gray-500">Tel: <?php echo htmlspecialchars(HOSPITAL_PHONE); ?> • <?php echo htmlspecialchars(HOSPITAL_ADDRESS); ?></p>
             </div>
 
             <!-- Receipt Category Badge -->

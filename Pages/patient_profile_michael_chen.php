@@ -98,8 +98,8 @@ $patientPrescriptions = $stmtRx->fetchAll();
 $initials = strtoupper(substr($patient['first_name'], 0, 1) . substr($patient['last_name'], 0, 1));
 $hasAllergy = (!empty($patient['allergies']) && strtolower($patient['allergies']) !== 'none known');
 
-$pageTitle = "Patient Chart - {$patient['full_name']} - MedCore Systems";
-$headerTitle = 'MedCore Management - Patient Chart';
+$pageTitle = "Patient Chart - {$patient['full_name']} - " . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Patient Chart';
 $activePage = 'patients';
 
 include __DIR__ . '/../components/header.php';

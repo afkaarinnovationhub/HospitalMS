@@ -22,8 +22,8 @@ $assets = $bs['assets'];
 $liab = $bs['liabilities'];
 $equity = $bs['equity'];
 
-$pageTitle = 'Balance Sheet - MedCore Systems';
-$headerTitle = 'MedCore Management - Balance Sheet';
+$pageTitle = 'Balance Sheet - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Balance Sheet';
 $activePage = 'accounting';
 
 include __DIR__ . '/../components/header.php';
@@ -66,10 +66,9 @@ include __DIR__ . '/../components/header.php';
     <div class="bg-surface border border-outline-variant rounded-2xl p-6 sm:p-8 shadow-sm max-w-4xl mx-auto space-y-6">
         <!-- Hospital Branding Header -->
         <div class="text-center border-b border-outline-variant pb-6">
-            <h1 class="text-xl sm:text-2xl font-bold text-primary font-headline-md">MedCore Healthcare Systems</h1>
+            <h1 class="text-xl sm:text-2xl font-bold text-primary font-headline-md"><?php echo htmlspecialchars(HOSPITAL_NAME); ?></h1>
             <p class="text-xs sm:text-sm font-semibold text-on-surface mt-0.5">STATEMENT OF FINANCIAL POSITION (BALANCE SHEET)</p>
             <p class="text-xs text-on-surface-variant mt-1">As of: <?php echo date('F d, Y', strtotime($asOfDate)); ?></p>
-            <p class="text-[11px] text-on-surface-variant font-mono mt-0.5">Accounting Equation: Assets = Liabilities + Equity</p>
         </div>
 
         <!-- 2 Column Layout: Assets (Left) vs Liabilities & Equity (Right) -->
@@ -77,7 +76,7 @@ include __DIR__ . '/../components/header.php';
             <!-- LEFT COLUMN: ASSETS -->
             <div class="space-y-4">
                 <div class="bg-surface-container-low p-2.5 rounded-lg font-bold text-on-surface uppercase tracking-wider text-[11px] flex justify-between">
-                    <span>1. ASSETS (Hantida Isbitaalka)</span>
+                    <span>1. ASSETS</span>
                     <span>USD ($)</span>
                 </div>
 
@@ -86,23 +85,23 @@ include __DIR__ . '/../components/header.php';
                     <h4 class="font-bold text-xs text-primary px-2 mb-1">A. Current Assets</h4>
                     <div class="divide-y divide-outline-variant/50">
                         <div class="py-2 px-3 flex justify-between hover:bg-surface-container-lowest">
-                            <span class="text-on-surface-variant font-medium">1010 - Cash on Hand (Khasnadda)</span>
+                            <span class="text-on-surface-variant font-medium">1010 - Cash on Hand</span>
                             <span class="font-mono text-on-surface font-semibold">$<?php echo number_format((float)$assets['cash_on_hand'], 2); ?></span>
                         </div>
                         <div class="py-2 px-3 flex justify-between hover:bg-surface-container-lowest">
-                            <span class="text-on-surface-variant font-medium">1020 - Mobile Money (EVC / Zaad)</span>
+                            <span class="text-on-surface-variant font-medium">1020 - Mobile Money</span>
                             <span class="font-mono text-on-surface font-semibold">$<?php echo number_format((float)$assets['mobile_money'], 2); ?></span>
                         </div>
                         <div class="py-2 px-3 flex justify-between hover:bg-surface-container-lowest">
-                            <span class="text-on-surface-variant font-medium">1030 - Bank Account (Commercial Banks)</span>
+                            <span class="text-on-surface-variant font-medium">1030 - Bank Account</span>
                             <span class="font-mono text-on-surface font-semibold">$<?php echo number_format((float)($assets['bank_account'] ?? 0), 2); ?></span>
                         </div>
                         <div class="py-2 px-3 flex justify-between hover:bg-surface-container-lowest">
-                            <span class="text-on-surface-variant font-medium">1100 - Accounts Receivable (Patient Debts)</span>
+                            <span class="text-on-surface-variant font-medium">1100 - Accounts Receivable</span>
                             <span class="font-mono text-amber-600 font-semibold">$<?php echo number_format((float)$assets['accounts_receivable'], 2); ?></span>
                         </div>
                         <div class="py-2 px-3 flex justify-between hover:bg-surface-container-lowest">
-                            <span class="text-on-surface-variant font-medium">1200 - Pharmacy Inventory Asset Value</span>
+                            <span class="text-on-surface-variant font-medium">1200 - Pharmacy Inventory</span>
                             <span class="font-mono text-on-surface font-semibold">$<?php echo number_format((float)$assets['pharmacy_inventory'], 2); ?></span>
                         </div>
                     </div>
@@ -143,10 +142,10 @@ include __DIR__ . '/../components/header.php';
 
                 <!-- Liabilities -->
                 <div>
-                    <h4 class="font-bold text-xs text-error px-2 mb-1">A. Current Liabilities (Deymaha)</h4>
+                    <h4 class="font-bold text-xs text-error px-2 mb-1">A. Current Liabilities</h4>
                     <div class="divide-y divide-outline-variant/50">
                         <div class="py-2 px-3 flex justify-between hover:bg-surface-container-lowest">
-                            <span class="text-on-surface-variant">2010 - Accounts Payable (Vendor/Supplier Debts)</span>
+                            <span class="text-on-surface-variant">2010 - Accounts Payable</span>
                             <span class="font-mono text-error font-semibold">$<?php echo number_format((float)$liab['accounts_payable'], 2); ?></span>
                         </div>
                     </div>
@@ -158,14 +157,14 @@ include __DIR__ . '/../components/header.php';
 
                 <!-- Equity -->
                 <div>
-                    <h4 class="font-bold text-xs text-secondary px-2 mb-1">B. Hospital Equity (Raasumaalka)</h4>
+                    <h4 class="font-bold text-xs text-secondary px-2 mb-1">B. Equity</h4>
                     <div class="divide-y divide-outline-variant/50">
                         <div class="py-2 px-3 flex justify-between hover:bg-surface-container-lowest">
                             <span class="text-on-surface-variant">3010 - Owner's Paid-in Capital</span>
                             <span class="font-mono text-on-surface">$<?php echo number_format((float)$equity['owners_capital'], 2); ?></span>
                         </div>
                         <div class="py-2 px-3 flex justify-between hover:bg-surface-container-lowest">
-                            <span class="text-on-surface-variant">3020 - Retained Earnings (YTD Net Income)</span>
+                            <span class="text-on-surface-variant">3020 - Retained Earnings</span>
                             <span class="font-mono <?php echo $equity['current_year_earnings'] >= 0 ? 'text-secondary' : 'text-error'; ?> font-semibold">
                                 $<?php echo number_format((float)$equity['current_year_earnings'], 2); ?>
                             </span>
@@ -190,12 +189,11 @@ include __DIR__ . '/../components/header.php';
             <span class="flex items-center gap-1.5">
                 <span class="material-symbols-outlined text-[18px]"><?php echo $bs['is_balanced'] ? 'verified' : 'warning'; ?></span>
                 <?php if ($bs['is_balanced']): ?>
-                    <strong>Balanced Ledger:</strong> Total Assets ($<?php echo number_format((float)$assets['total_assets'], 2); ?>) equals Total Liabilities &amp; Equity ($<?php echo number_format((float)($liab['total_liabilities'] + $equity['total_equity']), 2); ?>).
+                    <strong>Balanced:</strong> Total Assets ($<?php echo number_format((float)$assets['total_assets'], 2); ?>) equals Total Liabilities &amp; Equity ($<?php echo number_format((float)($liab['total_liabilities'] + $equity['total_equity']), 2); ?>).
                 <?php else: ?>
-                    <strong>Unbalanced Ledger:</strong> Difference detected between Assets and Liabilities + Equity.
+                    <strong>Unbalanced:</strong> Difference detected between Assets and Liabilities + Equity.
                 <?php endif; ?>
             </span>
-            <span class="font-mono uppercase font-bold text-[11px]">GAAP Compliant</span>
         </div>
     </div>
 </main>

@@ -48,6 +48,7 @@ class AccountingOperation
         ['6040', 'Medical & Surgical Consumable Supplies', 'expense', 'operating_expense', 'Single-use PPE gloves, syringes, sterile dressings, and disinfectants'],
         ['6050', 'Facility & Medical Equipment Repairs', 'expense', 'operating_expense', 'Maintenance and repairs of hospital machinery and building'],
         ['6060', 'Internet, Telephony & Software Subscriptions', 'expense', 'operating_expense', 'Telecom connectivity, hospital broadband, and software systems'],
+        ['6080', 'Inventory Adjustment & Shrinkage Loss (Dhimista Daawada)', 'expense', 'operating_expense', 'Losses, discrepancies, or write-offs identified during physical stock counts or damaged/expired medications'],
         ['6090', 'Miscellaneous & Administrative Expenses', 'expense', 'operating_expense', 'General hospital administrative and incidental operating expenditures'],
     ];
 
@@ -58,17 +59,25 @@ class AccountingOperation
     {
         $pdo = getDBConnection();
         $count = (int)$pdo->query("SELECT COUNT(*) FROM chart_of_accounts")->fetchColumn();
-        if ($count > 0) {
+        if ($count === 0) {
+            $stmt = $pdo->prepare("
+                INSERT INTO chart_of_accounts (account_code, account_name, account_type, category, description, is_active)
+                VALUES (?, ?, ?, ?, ?, 1)
+            ");
+
+            foreach (self::DEFAULT_ACCOUNTS as $acc) {
+                $stmt->execute([$acc[0], $acc[1], $acc[2], $acc[3], $acc[4]]);
+            }
             return;
         }
 
-        $stmt = $pdo->prepare("
-            INSERT INTO chart_of_accounts (account_code, account_name, account_type, category, description, is_active)
-            VALUES (?, ?, ?, ?, ?, 1)
-        ");
-
-        foreach (self::DEFAULT_ACCOUNTS as $acc) {
-            $stmt->execute([$acc[0], $acc[1], $acc[2], $acc[3], $acc[4]]);
+        // Ensure 6080 exists in existing Chart of Accounts
+        $has6080 = $pdo->query("SELECT id FROM chart_of_accounts WHERE account_code = '6080'")->fetchColumn();
+        if (!$has6080) {
+            $pdo->prepare("
+                INSERT INTO chart_of_accounts (account_code, account_name, account_type, category, description, is_active)
+                VALUES ('6080', 'Inventory Adjustment & Shrinkage Loss (Dhimista Daawada)', 'expense', 'operating_expense', 'Losses, discrepancies, or write-offs identified during physical stock counts or damaged/expired medications', 1)
+            ")->execute();
         }
     }
 
@@ -250,6 +259,21 @@ class AccountingOperation
     }
 
     /**
+     * Retrieves all liquid money accounts (Cash, Mobile Money, Bank) eligible for inter-account transfers and settlements.
+     */
+    public static function getLiquidMoneyAccounts(): array
+    {
+        $pdo = getDBConnection();
+        self::seedChartOfAccountsIfEmpty();
+        $stmt = $pdo->query("
+            SELECT * FROM chart_of_accounts 
+            WHERE account_code IN ('1010', '1020', '1030')
+            ORDER BY account_code ASC
+        ");
+        return $stmt->fetchAll();
+    }
+
+    /**
      * Records a balanced Double-Entry Journal Entry with atomic validation.
      * Enforces Sum(Debits) === Sum(Credits).
      *
@@ -368,6 +392,44 @@ class AccountingOperation
         $stmt = $pdo->query("SELECT MAX(id) FROM hospital_expenses");
         $nextId = ((int)$stmt->fetchColumn()) + 1;
         return sprintf('EXP-%s-%04d', $year, $nextId);
+    }
+
+    /**
+     * Generates a unique Transfer Number (e.g. TRF-2026-0001).
+     */
+    private static function generateTransferNumber(): string
+    {
+        $pdo = getDBConnection();
+        $year = date('Y');
+        $stmt = $pdo->query("SELECT MAX(id) FROM account_transfers");
+        $nextId = ((int)$stmt->fetchColumn()) + 1;
+        return sprintf('TRF-%s-%04d', $year, $nextId);
+    }
+
+    /**
+     * Ensures account_transfers table exists in database.
+     */
+    public static function initTransfersTableIfNotExists(): void
+    {
+        $pdo = getDBConnection();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS account_transfers (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                transfer_number VARCHAR(50) NOT NULL UNIQUE,
+                from_account_id INT UNSIGNED NOT NULL,
+                to_account_id INT UNSIGNED NOT NULL,
+                amount DECIMAL(12,2) NOT NULL,
+                transfer_date DATE NOT NULL,
+                reference_number VARCHAR(100) NULL,
+                notes VARCHAR(255) NULL,
+                journal_entry_id INT UNSIGNED NULL,
+                created_by INT UNSIGNED NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_from_acc (from_account_id),
+                INDEX idx_to_acc (to_account_id),
+                INDEX idx_transfer_date (transfer_date)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ");
     }
 
     /**
@@ -602,7 +664,18 @@ class AccountingOperation
             $labCount = (int)$stmtLabF->fetchColumn();
         }
 
-        $totalRevenue = $pharmacyRevenue + $consultationRevenue + $labRevenue;
+        // D. Other Operating Income (4090) (Incidental clinical gains, inventory surplus adjustments)
+        $stmtOtherGl = $pdo->prepare("
+            SELECT COALESCE(SUM(ji.credit - ji.debit), 0)
+            FROM journal_items ji
+            JOIN chart_of_accounts a ON ji.account_id = a.id
+            JOIN journal_entries je ON ji.journal_entry_id = je.id
+            WHERE a.account_code = '4090' AND je.entry_date BETWEEN ? AND ?
+        ");
+        $stmtOtherGl->execute([$startDate, $endDate]);
+        $otherRevenue = (float)$stmtOtherGl->fetchColumn();
+
+        $totalRevenue = $pharmacyRevenue + $consultationRevenue + $labRevenue + $otherRevenue;
 
         // 2. COST OF GOODS SOLD (COGS)
         $stmtCogsGl = $pdo->prepare("
@@ -630,16 +703,36 @@ class AccountingOperation
         $grossProfit = $totalRevenue - $cogsMedications;
 
         // 3. OPERATING EXPENSES
-        $stmtExp = $pdo->prepare("
-            SELECT a.account_code, a.account_name, COALESCE(SUM(e.amount), 0) as total_amount
-            FROM hospital_expenses e
-            JOIN chart_of_accounts a ON e.account_id = a.id
-            WHERE e.expense_date BETWEEN ? AND ?
+        // Query General Ledger directly for all expense accounts (6000-series: staff, rent, utilities, repairs, shrinkage loss 6080, admin)
+        $stmtGlExp = $pdo->prepare("
+            SELECT 
+                a.account_code, 
+                a.account_name, 
+                COALESCE(SUM(ji.debit - ji.credit), 0) as total_amount
+            FROM chart_of_accounts a
+            JOIN journal_items ji ON a.id = ji.account_id
+            JOIN journal_entries je ON ji.journal_entry_id = je.id
+            WHERE a.account_type = 'expense' AND je.entry_date BETWEEN ? AND ?
             GROUP BY a.id, a.account_code, a.account_name
+            HAVING total_amount > 0
             ORDER BY a.account_code ASC
         ");
-        $stmtExp->execute([$startDate, $endDate]);
-        $expenseBreakdown = $stmtExp->fetchAll();
+        $stmtGlExp->execute([$startDate, $endDate]);
+        $expenseBreakdown = $stmtGlExp->fetchAll();
+
+        // Fallback to hospital_expenses table if no GL expense entries exist
+        if (empty($expenseBreakdown)) {
+            $stmtExp = $pdo->prepare("
+                SELECT a.account_code, a.account_name, COALESCE(SUM(e.amount), 0) as total_amount
+                FROM hospital_expenses e
+                JOIN chart_of_accounts a ON e.account_id = a.id
+                WHERE e.expense_date BETWEEN ? AND ?
+                GROUP BY a.id, a.account_code, a.account_name
+                ORDER BY a.account_code ASC
+            ");
+            $stmtExp->execute([$startDate, $endDate]);
+            $expenseBreakdown = $stmtExp->fetchAll();
+        }
 
         $totalExpenses = 0.0;
         foreach ($expenseBreakdown as $exp) {
@@ -659,6 +752,7 @@ class AccountingOperation
                 'consultation_count'   => $consultationCount,
                 'laboratory_fees'      => $labRevenue,
                 'laboratory_count'     => $labCount,
+                'other_income'         => $otherRevenue,
                 'total_revenue'        => $totalRevenue,
             ],
             'cogs' => [
@@ -742,6 +836,190 @@ class AccountingOperation
             $journalItems,
             $userId
         );
+    }
+
+    /**
+     * Records a direct money transfer between hospital accounts (e.g. Mobile Money to Bank Account, Cash to Bank, Bank to Cash).
+     * Enforces double-entry General Ledger balancing with direct contra-entry:
+     * - Credit: From Account ($amount) [decreases source asset]
+     * - Debit:  To Account ($amount)   [increases destination asset]
+     *
+     * @param array $data ['from_account_id', 'to_account_id', 'amount', 'transfer_date', 'reference_number', 'notes']
+     * @param int|null $userId
+     * @return int Transfer ID
+     */
+    public static function recordAccountTransfer(array $data, ?int $userId = null): int
+    {
+        $pdo = getDBConnection();
+        self::seedChartOfAccountsIfEmpty();
+        self::initTransfersTableIfNotExists();
+
+        $fromId = (int)($data['from_account_id'] ?? 0);
+        $toId   = (int)($data['to_account_id'] ?? 0);
+        $amount = round((float)($data['amount'] ?? 0), 2);
+        $transferDate = !empty($data['transfer_date']) ? $data['transfer_date'] : date('Y-m-d');
+        $referenceNumber = !empty($data['reference_number']) ? trim($data['reference_number']) : null;
+        $notes = !empty($data['notes']) ? trim($data['notes']) : null;
+
+        if ($fromId <= 0 || $toId <= 0) {
+            throw new InvalidArgumentException('Both source and destination accounts must be selected.');
+        }
+
+        if ($fromId === $toId) {
+            throw new InvalidArgumentException('Source and destination accounts cannot be the same account.');
+        }
+
+        if ($amount <= 0) {
+            throw new InvalidArgumentException('Transfer amount must be greater than zero.');
+        }
+
+        $fromAcc = self::getAccountById($fromId);
+        $toAcc   = self::getAccountById($toId);
+
+        if (!$fromAcc || !$toAcc) {
+            throw new InvalidArgumentException('One or both selected accounts were not found.');
+        }
+
+        $allowedLiquidCodes = ['1010', '1020', '1030'];
+        if (!in_array($fromAcc['account_code'], $allowedLiquidCodes, true) || !in_array($toAcc['account_code'], $allowedLiquidCodes, true)) {
+            throw new InvalidArgumentException('Money transfers can only be performed between liquid funds accounts: Cash on Hand (1010), Mobile Money (1020), and Bank Account (1030). Accounts like Receivables and Inventory cannot be transferred.');
+        }
+
+        if ($fromAcc['account_type'] !== 'asset' || $toAcc['account_type'] !== 'asset') {
+            throw new InvalidArgumentException('Inter-account money transfers can only be performed between Asset accounts.');
+        }
+
+        // Live balance check on source account:
+        $currentFromBalance = self::getAccountBalanceByCode($fromAcc['account_code']);
+        if ($currentFromBalance < $amount) {
+            throw new InvalidArgumentException(sprintf(
+                'Insufficient balance in [%s]. Available: $%.2f, Requested Transfer: $%.2f.',
+                $fromAcc['account_name'],
+                $currentFromBalance,
+                $amount
+            ));
+        }
+
+        $transferNumber = self::generateTransferNumber();
+
+        $ownsTransaction = false;
+        if (!$pdo->inTransaction()) {
+            $pdo->beginTransaction();
+            $ownsTransaction = true;
+        }
+
+        try {
+            // Balanced Journal Entry:
+            // Debit: Destination Account (funds entering)
+            // Credit: Source Account (funds leaving)
+            $memoDesc = "Transfer [{$transferNumber}]: {$fromAcc['account_name']} -> {$toAcc['account_name']}";
+            if ($notes) {
+                $memoDesc .= " ({$notes})";
+            }
+
+            $journalItems = [
+                [
+                    'account_id' => $toId,
+                    'debit'      => $amount,
+                    'credit'     => 0.00,
+                    'memo'       => "Received from {$fromAcc['account_name']}" . ($referenceNumber ? " [Ref: {$referenceNumber}]" : ''),
+                ],
+                [
+                    'account_id' => $fromId,
+                    'debit'      => 0.00,
+                    'credit'     => $amount,
+                    'memo'       => "Transferred to {$toAcc['account_name']}" . ($referenceNumber ? " [Ref: {$referenceNumber}]" : ''),
+                ],
+            ];
+
+            $journalId = self::recordJournalEntry(
+                $transferDate,
+                'account_transfer',
+                null,
+                $memoDesc,
+                $journalItems,
+                $userId
+            );
+
+            $stmtTrf = $pdo->prepare("
+                INSERT INTO account_transfers (transfer_number, from_account_id, to_account_id, amount, transfer_date, reference_number, notes, journal_entry_id, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmtTrf->execute([
+                $transferNumber,
+                $fromId,
+                $toId,
+                $amount,
+                $transferDate,
+                $referenceNumber,
+                $notes,
+                $journalId,
+                $userId,
+            ]);
+            $transferId = (int)$pdo->lastInsertId();
+
+            // Link reference_id in journal entry
+            $pdo->prepare("UPDATE journal_entries SET reference_id = ? WHERE id = ?")->execute([$transferId, $journalId]);
+
+            if ($ownsTransaction && $pdo->inTransaction()) {
+                $pdo->commit();
+            }
+
+            return $transferId;
+
+        } catch (Exception $e) {
+            if ($ownsTransaction && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            error_log('[HPMS TRANSFER ERROR] ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Retrieves recent account money transfers with source/destination accounts and creator info.
+     *
+     * @param string|null $startDate
+     * @param string|null $endDate
+     * @param int $limit
+     * @return array
+     */
+    public static function getAccountTransfers(?string $startDate = null, ?string $endDate = null, int $limit = 20): array
+    {
+        $pdo = getDBConnection();
+        self::initTransfersTableIfNotExists();
+
+        $where = [];
+        $params = [];
+
+        if ($startDate) {
+            $where[] = "t.transfer_date >= :start_date";
+            $params[':start_date'] = $startDate;
+        }
+        if ($endDate) {
+            $where[] = "t.transfer_date <= :end_date";
+            $params[':end_date'] = $endDate;
+        }
+
+        $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $stmt = $pdo->prepare("
+            SELECT t.*, 
+                   fa.account_code as from_code, fa.account_name as from_name,
+                   ta.account_code as to_code, ta.account_name as to_name,
+                   u.full_name as created_by_name,
+                   je.entry_number as journal_number
+            FROM account_transfers t
+            JOIN chart_of_accounts fa ON t.from_account_id = fa.id
+            JOIN chart_of_accounts ta ON t.to_account_id = ta.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN journal_entries je ON t.journal_entry_id = je.id
+            {$whereClause}
+            ORDER BY t.transfer_date DESC, t.id DESC
+            LIMIT " . (int)$limit . "
+        ");
+        $stmt->execute($params);
+        return $stmt->fetchAll();
     }
 
     /**

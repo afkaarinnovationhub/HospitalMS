@@ -86,8 +86,8 @@ foreach ($doctors as $doc) {
     $docCounts[$dId] = (int)$stmtC->fetchColumn();
 }
 
-$pageTitle = 'Front Desk Reception & Intake - MedCore Systems';
-$headerTitle = 'MedCore Management - Reception Desk';
+$pageTitle = 'Front Desk Reception & Intake - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Reception Desk';
 $activePage = 'reception';
 
 include __DIR__ . '/../components/header.php';
@@ -101,14 +101,14 @@ include __DIR__ . '/../components/header.php';
             <div>
                 <h2 class="font-headline-lg text-xl sm:text-headline-lg font-bold text-on-surface">Front Desk Reception &amp; Quick Intake</h2>
                 <p class="font-body-md text-xs sm:text-body-md text-on-surface-variant mt-xs">
-                    Welcome back, <strong class="text-primary font-bold"><?php echo e($currentUser['full_name'] ?? 'Receptionist'); ?></strong> • Rapid patient check-in, auto-MRN generation, and queue management.
+                    Welcome back, <strong class="text-primary font-bold"><?php echo e($currentUser['full_name'] ?? 'Receptionist'); ?></strong>
                 </p>
             </div>
             <!-- Action Buttons -->
             <div class="flex flex-wrap gap-sm w-full md:w-auto">
                 <button type="button" onclick="openQuickIntakeModal()" class="flex-1 sm:flex-none flex items-center justify-center gap-xs px-md py-2.5 bg-primary text-on-primary font-label-md text-xs sm:text-label-md rounded-lg hover:bg-primary-container hover:text-on-primary-container transition-colors shadow-sm font-bold cursor-pointer">
                     <span class="material-symbols-outlined text-[20px]">confirmation_number</span>
-                    Quick Check-In / Issue Token
+                    + Quick Check-In
                 </button>
                 <a href="patient_registration.php" class="flex-1 sm:flex-none flex items-center justify-center gap-xs px-md py-2.5 border border-outline-variant text-on-surface font-label-md text-xs sm:text-label-md rounded-lg hover:bg-surface-container-low transition-colors font-medium">
                     <span class="material-symbols-outlined text-[20px]">groups</span>
@@ -144,7 +144,6 @@ include __DIR__ . '/../components/header.php';
                 <div>
                     <p class="font-label-md text-xs text-on-surface-variant uppercase font-semibold">Today's Registered</p>
                     <p class="font-display-lg text-2xl font-bold text-on-surface mt-1"><?php echo number_format($kpis['today_registered']); ?></p>
-                    <p class="font-body-sm text-[11px] text-secondary mt-0.5 font-semibold">Total Patients: <?php echo number_format($kpis['total_patients']); ?></p>
                 </div>
                 <div class="w-10 h-10 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center">
                     <span class="material-symbols-outlined text-[20px]">how_to_reg</span>
@@ -155,7 +154,6 @@ include __DIR__ . '/../components/header.php';
                 <div>
                     <p class="font-label-md text-xs text-on-surface-variant uppercase font-semibold">Waiting in Lobby</p>
                     <p class="font-display-lg text-2xl font-bold text-secondary mt-1"><?php echo number_format($kpis['waiting_in_queue']); ?></p>
-                    <p class="font-body-sm text-[11px] text-on-surface-variant mt-0.5">In doctor queue</p>
                 </div>
                 <div class="w-10 h-10 rounded-full bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center">
                     <span class="material-symbols-outlined text-[20px]">chair</span>
@@ -166,7 +164,6 @@ include __DIR__ . '/../components/header.php';
                 <div>
                     <p class="font-label-md text-xs text-on-surface-variant uppercase font-semibold">In Consultation</p>
                     <p class="font-display-lg text-2xl font-bold text-primary mt-1"><?php echo number_format($kpis['in_consultation']); ?></p>
-                    <p class="font-body-sm text-[11px] text-on-surface-variant mt-0.5">With doctor</p>
                 </div>
                 <div class="w-10 h-10 rounded-full bg-primary-fixed text-on-primary-fixed flex items-center justify-center">
                     <span class="material-symbols-outlined text-[20px]">stethoscope</span>
@@ -177,7 +174,6 @@ include __DIR__ . '/../components/header.php';
                 <div>
                     <p class="font-label-md text-xs text-on-surface-variant uppercase font-semibold">Completed Today</p>
                     <p class="font-display-lg text-2xl font-bold text-on-surface mt-1"><?php echo number_format($kpis['completed_today']); ?></p>
-                    <p class="font-body-sm text-[11px] text-secondary mt-0.5 font-semibold">Finished visits</p>
                 </div>
                 <div class="w-10 h-10 rounded-full bg-surface-container-high text-on-surface flex items-center justify-center">
                     <span class="material-symbols-outlined text-[20px]">task_alt</span>
@@ -260,9 +256,20 @@ include __DIR__ . '/../components/header.php';
                                             </td>
                                             <td class="py-3 px-3 font-medium text-on-surface-variant"><?php echo e($q['department']); ?></td>
                                             <td class="py-3 px-3">
-                                                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize <?php echo $statusBadge; ?>">
-                                                    <?php echo str_replace('_', ' ', $q['status']); ?>
-                                                </span>
+                                                <div class="flex flex-col gap-1">
+                                                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize <?php echo $statusBadge; ?>">
+                                                        <?php echo str_replace('_', ' ', $q['status']); ?>
+                                                    </span>
+                                                    <?php if (($q['billing_status'] ?? '') === 'paid'): ?>
+                                                        <span class="text-[9px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded text-center">
+                                                            ✓ Paid
+                                                        </span>
+                                                    <?php else: ?>
+                                                        <span class="text-[9px] font-bold text-amber-800 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded text-center" title="Awaiting fee payment at cashier">
+                                                            🔒 Unpaid
+                                                        </span>
+                                                    <?php endif; ?>
+                                                </div>
                                             </td>
                                             <td class="py-3 px-3 text-right">
                                                 <div class="flex items-center justify-end gap-1">
@@ -432,6 +439,7 @@ include __DIR__ . '/../components/header.php';
                             <button type="button" onclick="setReceptionFee(30)" class="px-2.5 py-1.5 bg-surface-container hover:bg-surface-container-high text-[10px] font-bold rounded-lg text-on-surface cursor-pointer border border-outline-variant">$30</button>
                         </div>
                     </div>
+
 
                     <!-- Inner Line Separator: Department & Priority -->
                     <div class="border-t border-primary/20 pt-2.5">
@@ -704,9 +712,9 @@ include __DIR__ . '/../components/header.php';
         <!-- Printable Slip Card -->
         <div id="printable-token-slip" class="bg-white text-black p-5 rounded-xl border border-dashed border-gray-300 font-mono text-center space-y-2 shadow-inner">
             <div class="border-b border-dashed border-gray-300 pb-2">
-                <h4 class="font-bold text-base tracking-wide uppercase">MedCore Hospital</h4>
+                <h4 class="font-bold text-base tracking-wide uppercase"><?php echo htmlspecialchars(HOSPITAL_NAME); ?></h4>
                 <p class="text-[10px] text-gray-600">Main Outpatient Clinic • Reception</p>
-                <p class="text-[9px] text-gray-500">Tel: +252 (0) 61 000-0000</p>
+                <p class="text-[9px] text-gray-500">Tel: <?php echo htmlspecialchars(HOSPITAL_PHONE); ?> • <?php echo htmlspecialchars(HOSPITAL_ADDRESS); ?></p>
             </div>
 
             <div class="py-2">
@@ -782,7 +790,7 @@ include __DIR__ . '/../components/header.php';
 
         <div id="printable-refund-slip" class="bg-white text-black p-5 rounded-xl border border-dashed border-gray-300 font-mono text-center space-y-2 shadow-inner">
             <div class="border-b border-dashed border-gray-300 pb-2">
-                <h4 class="font-bold text-base tracking-wide uppercase">MedCore Hospital</h4>
+                <h4 class="font-bold text-base tracking-wide uppercase"><?php echo htmlspecialchars(HOSPITAL_NAME); ?></h4>
                 <p class="text-[11px] text-gray-600">Patient Cash Refund Voucher</p>
             </div>
 

@@ -40,8 +40,8 @@ $asOfDate = !empty($_GET['as_of_date']) ? sanitizeString($_GET['as_of_date']) : 
 $tb = AccountingOperation::getTrialBalanceReport($asOfDate);
 $allAccounts = AccountingOperation::getAllAccounts();
 
-$pageTitle = 'Trial Balance - MedCore Systems';
-$headerTitle = 'MedCore Management - Trial Balance';
+$pageTitle = 'Trial Balance - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Trial Balance';
 $activePage = 'accounting';
 
 include __DIR__ . '/../components/header.php';
@@ -79,17 +79,17 @@ include __DIR__ . '/../components/header.php';
                 </a>
                 <h2 class="font-headline-md text-xl sm:text-2xl font-bold text-on-surface flex items-center gap-2">
                     <span class="material-symbols-outlined text-primary text-[28px]">account_tree</span>
-                    General Ledger Trial Balance (Miisaanka Dheelitirka)
+                    Trial Balance
                 </h2>
             </div>
             <p class="font-body-sm text-xs sm:text-sm text-on-surface-variant mt-0.5 ml-7">
-                All ledger accounts debit and credit balances as of <strong class="text-on-surface"><?php echo date('M d, Y', strtotime($asOfDate)); ?></strong>
+                As of <strong class="text-on-surface"><?php echo date('M d, Y', strtotime($asOfDate)); ?></strong>
             </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <button type="button" onclick="openJournalModal()" class="px-3.5 py-2 bg-primary hover:bg-primary-container text-on-primary font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer">
                 <span class="material-symbols-outlined text-[18px]">edit_document</span>
-                Post Manual Journal
+                + Post Journal
             </button>
             <button type="button" onclick="window.print()" class="px-3.5 py-2 bg-surface-container border border-outline-variant hover:bg-surface-container-high text-on-surface font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs">
                 <span class="material-symbols-outlined text-[18px]">print</span>
@@ -102,7 +102,7 @@ include __DIR__ . '/../components/header.php';
     <div class="bg-surface border border-outline-variant rounded-2xl p-6 sm:p-8 shadow-sm max-w-4xl mx-auto space-y-6">
         <!-- Hospital Branding Header -->
         <div class="text-center border-b border-outline-variant pb-4">
-            <h1 class="text-xl sm:text-2xl font-bold text-primary font-headline-md">MedCore Healthcare Systems</h1>
+            <h1 class="text-xl sm:text-2xl font-bold text-primary font-headline-md"><?php echo htmlspecialchars(HOSPITAL_NAME); ?></h1>
             <p class="text-xs sm:text-sm font-semibold text-on-surface mt-0.5">GENERAL LEDGER TRIAL BALANCE</p>
             <p class="text-xs text-on-surface-variant mt-0.5">As of: <?php echo date('F d, Y', strtotime($asOfDate)); ?></p>
         </div>

@@ -33,7 +33,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
-    <title>Staff Registration - MedCore Systems</title>
+    <title>Staff Registration - <?php echo htmlspecialchars(HOSPITAL_NAME); ?></title>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Courier+Prime:wght@400;700&amp;display=swap" rel="stylesheet">
@@ -90,8 +90,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary text-on-primary shadow-lg shadow-primary/20 mb-2">
                 <span class="material-symbols-outlined text-[32px] fill">local_hospital</span>
             </div>
-            <h1 class="text-2xl font-bold text-primary tracking-tight">MedCore Systems</h1>
-            <p class="text-xs text-on-surface-variant mt-1">Staff Access &amp; Clinical Operations Registration</p>
+            <h1 class="text-2xl font-bold text-primary tracking-tight"><?php echo htmlspecialchars(HOSPITAL_NAME); ?></h1>
+            <p class="text-xs text-on-surface-variant mt-1"><?php echo htmlspecialchars(HOSPITAL_TAGLINE); ?></p>
         </div>
 
         <!-- Registration Card -->
@@ -155,7 +155,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-semibold text-on-surface-variant mb-1">Work Email *</label>
-                        <input name="email" class="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-xs sm:text-sm text-on-surface placeholder:text-outline focus:border-primary outline-none" placeholder="name@medcore.org" required type="email" value="<?php echo e($_POST['email'] ?? ''); ?>">
+                        <input name="email" class="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-xs sm:text-sm text-on-surface placeholder:text-outline focus:border-primary outline-none" placeholder="e.g. staff@cibaarhospital.so" required type="email" value="<?php echo e($_POST['email'] ?? ''); ?>">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-on-surface-variant mb-1">Phone Number</label>

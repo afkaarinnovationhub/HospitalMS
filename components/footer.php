@@ -6,7 +6,7 @@
     // Initialize sidebar state from localStorage on load
     (function() {
         if (window.innerWidth >= 1024) {
-            const isCollapsed = localStorage.getItem('medcore_sidebar_collapsed') === 'true';
+            const isCollapsed = (localStorage.getItem('hpms_sidebar_collapsed') || localStorage.getItem('medcore_sidebar_collapsed')) === 'true';
             if (isCollapsed) {
                 document.documentElement.classList.add('sidebar-collapsed');
                 const collapseIcon = document.getElementById('sidebar-collapse-icon');
@@ -28,7 +28,7 @@
             // Desktop: toggle mini / collapsed mode
             const html = document.documentElement;
             const isCollapsed = html.classList.toggle('sidebar-collapsed');
-            localStorage.setItem('medcore_sidebar_collapsed', isCollapsed ? 'true' : 'false');
+            localStorage.setItem('hpms_sidebar_collapsed', isCollapsed ? 'true' : 'false');
             
             const collapseIcon = document.getElementById('sidebar-collapse-icon');
             if (collapseIcon) {

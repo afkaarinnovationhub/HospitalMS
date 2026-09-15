@@ -69,8 +69,8 @@ foreach ($recentPayments as $rp) {
     }
 }
 
-$pageTitle = 'Accounts Receivable (AR) & Patient Statements - MedCore Systems';
-$headerTitle = 'MedCore Management - Accounts Receivable';
+$pageTitle = 'Accounts Receivable (AR) & Patient Statements - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Accounts Receivable';
 $activePage = 'accounting';
 
 include __DIR__ . '/../components/header.php';
@@ -108,12 +108,9 @@ include __DIR__ . '/../components/header.php';
                 </a>
                 <h2 class="font-headline-md text-xl sm:text-2xl font-bold text-on-surface flex items-center gap-2">
                     <span class="material-symbols-outlined text-amber-600 text-[28px]">person_pin</span>
-                    Accounts Receivable (Deymaha Bukaanka)
+                    Accounts Receivable
                 </h2>
             </div>
-            <p class="font-body-sm text-xs sm:text-sm text-on-surface-variant mt-0.5 ml-7">
-                Outstanding patient receivables, debt aging, and installment payment collections.
-            </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <button type="button" onclick="window.print()" class="px-3.5 py-2 bg-surface-container border border-outline-variant hover:bg-surface-container-high text-on-surface font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs">
@@ -127,10 +124,9 @@ include __DIR__ . '/../components/header.php';
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <!-- Total AR -->
         <div class="p-4 rounded-2xl bg-surface border border-outline-variant shadow-xs flex flex-col justify-between">
-            <span class="text-xs font-semibold text-on-surface-variant">Total Patient Debt (AR)</span>
+            <span class="text-xs font-semibold text-on-surface-variant">Total Receivables</span>
             <div class="mt-3">
                 <h3 class="text-2xl font-bold text-amber-600 font-mono">$<?php echo number_format((float)$ar['total_receivable'], 2); ?></h3>
-                <p class="text-[11px] text-on-surface-variant mt-1">Across <?php echo $ar['debtor_count']; ?> active debtor(s)</p>
             </div>
         </div>
 
@@ -139,7 +135,6 @@ include __DIR__ . '/../components/header.php';
             <span class="text-xs font-semibold text-secondary">Current (0 - 30 Days)</span>
             <div class="mt-3">
                 <h3 class="text-2xl font-bold text-secondary font-mono">$<?php echo number_format((float)$aging['current_0_30'], 2); ?></h3>
-                <p class="text-[11px] text-on-surface-variant mt-1">Recent outpatient &amp; pharmacy credit</p>
             </div>
         </div>
 
@@ -148,7 +143,6 @@ include __DIR__ . '/../components/header.php';
             <span class="text-xs font-semibold text-amber-500">Aging (31 - 60 Days)</span>
             <div class="mt-3">
                 <h3 class="text-2xl font-bold text-amber-600 font-mono">$<?php echo number_format((float)$aging['aging_31_60'], 2); ?></h3>
-                <p class="text-[11px] text-on-surface-variant mt-1">Due for follow-up reminders</p>
             </div>
         </div>
 
@@ -157,7 +151,6 @@ include __DIR__ . '/../components/header.php';
             <span class="text-xs font-semibold text-error">Overdue (> 60 Days)</span>
             <div class="mt-3">
                 <h3 class="text-2xl font-bold text-error font-mono">$<?php echo number_format((float)$aging['over_60_days'], 2); ?></h3>
-                <p class="text-[11px] text-on-surface-variant mt-1">High-priority collections</p>
             </div>
         </div>
     </div>
@@ -168,9 +161,8 @@ include __DIR__ . '/../components/header.php';
             <div>
                 <h3 class="font-bold text-sm text-on-surface flex items-center gap-2">
                     <span class="material-symbols-outlined text-primary text-[20px]">receipt_long</span>
-                    Patient Debt Ledger (Bukaanada Lacagtu ku Baaqiga Tahay)
+                    Patient Debt Ledger
                 </h3>
-                <p class="text-[11px] text-on-surface-variant">Live accounts receivable from pharmacy dispensing and clinical bills.</p>
             </div>
         </div>
 
@@ -414,8 +406,8 @@ include __DIR__ . '/../components/header.php';
         <div id="printable-customer-statement-area" class="space-y-4 bg-surface p-4 rounded-xl border border-outline-variant">
             <div class="flex justify-between items-start border-b border-outline-variant pb-3">
                 <div>
-                    <h4 class="font-bold text-base text-primary">MEDCORE HOSPITAL SYSTEMS</h4>
-                    <p class="text-xs text-on-surface-variant">Patient Billing &amp; Revenue Accounts Office</p>
+                    <h4 class="font-bold text-base text-primary uppercase"><?php echo htmlspecialchars(HOSPITAL_NAME); ?></h4>
+                    <p class="text-xs text-on-surface-variant">Patient Billing &amp; Revenue Accounts Office • Tel: <?php echo htmlspecialchars(HOSPITAL_PHONE); ?></p>
                 </div>
                 <div class="text-right text-xs">
                     <p class="font-bold text-on-surface">Statement Date: <?php echo date('M d, Y'); ?></p>

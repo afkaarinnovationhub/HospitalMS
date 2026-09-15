@@ -49,8 +49,8 @@ foreach ($allSuppliers as $s) {
     }
 }
 
-$pageTitle = 'Accounts Payable (AP) & Supplier Statements - MedCore Systems';
-$headerTitle = 'MedCore Management - Accounts Payable';
+$pageTitle = 'Accounts Payable (AP) & Supplier Statements - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Accounts Payable';
 $activePage = 'accounting';
 
 include __DIR__ . '/../components/header.php';
@@ -88,12 +88,9 @@ include __DIR__ . '/../components/header.php';
                 </a>
                 <h2 class="font-headline-md text-xl sm:text-2xl font-bold text-on-surface flex items-center gap-2">
                     <span class="material-symbols-outlined text-error text-[28px]">store</span>
-                    Accounts Payable (Deymaha Shirkadaha Daawada)
+                    Accounts Payable
                 </h2>
             </div>
-            <p class="font-body-sm text-xs sm:text-sm text-on-surface-variant mt-0.5 ml-7">
-                Outstanding liabilities owed to pharmaceutical distributors and vendors.
-            </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <a href="suppliers.php" class="px-3.5 py-2 bg-surface-container border border-outline-variant hover:bg-surface-container-high text-on-surface font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition-all">
@@ -113,7 +110,6 @@ include __DIR__ . '/../components/header.php';
             <span class="text-xs font-semibold text-on-surface-variant">Total Payables Due (AP)</span>
             <div class="mt-3">
                 <h3 class="text-2xl font-bold text-error font-mono">$<?php echo number_format((float)$ap['total_payable'], 2); ?></h3>
-                <p class="text-[11px] text-on-surface-variant mt-1">Owed to <?php echo $ap['supplier_count']; ?> pharmaceutical vendor(s)</p>
             </div>
         </div>
 
@@ -121,10 +117,6 @@ include __DIR__ . '/../components/header.php';
             <span class="text-xs font-semibold text-on-surface-variant">Active Vendor Restocks</span>
             <div class="mt-3">
                 <h3 class="text-2xl font-bold text-on-surface font-mono"><?php echo count($payables); ?></h3>
-                <p class="text-[11px] text-secondary font-semibold mt-1 flex items-center gap-1">
-                    <span class="material-symbols-outlined text-[14px]">local_shipping</span>
-                    Stock received &amp; on shelf
-                </p>
             </div>
         </div>
 
@@ -132,7 +124,6 @@ include __DIR__ . '/../components/header.php';
             <span class="text-xs font-semibold text-on-surface-variant">Registered Suppliers</span>
             <div class="mt-3">
                 <h3 class="text-2xl font-bold text-primary font-mono"><?php echo count($allSuppliers); ?></h3>
-                <p class="text-[11px] text-on-surface-variant mt-1">Active pharmaceutical distributors</p>
             </div>
         </div>
     </div>
@@ -143,9 +134,8 @@ include __DIR__ . '/../components/header.php';
             <div>
                 <h3 class="font-bold text-sm text-on-surface flex items-center gap-2">
                     <span class="material-symbols-outlined text-primary text-[20px]">receipt</span>
-                    Supplier Payables Ledger (Deymaha Shirkadaha lagu Leeyahay)
+                    Supplier Payables Ledger
                 </h3>
-                <p class="text-[11px] text-on-surface-variant">Invoices generated upon warehouse medicine restock.</p>
             </div>
         </div>
 

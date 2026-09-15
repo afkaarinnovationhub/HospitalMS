@@ -76,8 +76,8 @@ $stmtActivity = $pdo->query("
 ");
 $liveActivity = $stmtActivity->fetchAll();
 
-$pageTitle = 'Executive Hospital Dashboard - MedCore Systems';
-$headerTitle = 'MedCore Hospital Management';
+$pageTitle = 'Executive Hospital Dashboard - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Dashboard';
 $activePage = 'dashboard';
 
 include __DIR__ . '/../components/header.php';
@@ -130,7 +130,6 @@ include __DIR__ . '/../components/header.php';
                     <span class="text-2xl font-bold text-on-surface font-mono"><?php echo number_format($totalPatients); ?></span>
                     <span class="text-[11px] font-bold text-secondary font-mono">+<?php echo $todayNewPatients; ?> today</span>
                 </div>
-                <p class="text-[10px] text-on-surface-variant mt-0.5">Master patient database records</p>
             </div>
         </div>
 
@@ -147,7 +146,6 @@ include __DIR__ . '/../components/header.php';
                     <span class="text-2xl font-bold text-on-surface font-mono"><?php echo $waitingQueue; ?></span>
                     <span class="text-[11px] font-bold text-primary font-mono"><?php echo $inConsultation; ?> in consult</span>
                 </div>
-                <p class="text-[10px] text-on-surface-variant mt-0.5"><?php echo $completedToday; ?> patient(s) seen today</p>
             </div>
         </div>
 
@@ -168,7 +166,6 @@ include __DIR__ . '/../components/header.php';
                         <span class="text-[11px] font-bold text-secondary font-mono"><?php echo $completedLabToday; ?> done</span>
                     <?php endif; ?>
                 </div>
-                <p class="text-[10px] text-on-surface-variant mt-0.5">Pending laboratory test orders</p>
             </div>
         </div>
 
@@ -185,9 +182,6 @@ include __DIR__ . '/../components/header.php';
                     <span class="text-2xl font-bold text-on-surface font-mono"><?php echo $pendingPrescriptions; ?></span>
                     <span class="text-[11px] font-bold text-secondary font-mono"><?php echo $dispensedToday; ?> dispensed</span>
                 </div>
-                <p class="text-[10px] text-on-surface-variant mt-0.5">
-                    <?php echo $lowStockMedications > 0 ? "<span class='text-amber-600 font-bold'>{$lowStockMedications} low stock</span>" : 'Stock levels optimal'; ?>
-                </p>
             </div>
         </div>
 
@@ -203,13 +197,6 @@ include __DIR__ . '/../components/header.php';
                 <div class="flex items-baseline gap-2">
                     <span class="text-2xl font-bold text-secondary font-mono">$<?php echo number_format($todayRevenue, 2); ?></span>
                 </div>
-                <p class="text-[10px] text-on-surface-variant mt-0.5">
-                    <?php if ($unsettledBillsSum > 0): ?>
-                        Due: <strong class="text-error font-mono">$<?php echo number_format($unsettledBillsSum, 2); ?></strong> (<?php echo $unsettledBillsCount; ?> bills)
-                    <?php else: ?>
-                        All invoices settled
-                    <?php endif; ?>
-                </p>
             </div>
         </div>
     </div>
@@ -225,7 +212,6 @@ include __DIR__ . '/../components/header.php';
                         <span class="material-symbols-outlined text-primary text-[20px]">personal_injury</span>
                         Live Patient Encounters &amp; Clinical Routing
                     </h3>
-                    <p class="text-[11px] text-on-surface-variant">Real-time patient progression across Triage, Doctors, Lab, Pharmacy &amp; Billing.</p>
                 </div>
                 <div class="flex items-center gap-2">
                     <a href="queue_management.php" class="text-xs text-primary font-bold hover:underline flex items-center gap-0.5">
@@ -374,7 +360,6 @@ include __DIR__ . '/../components/header.php';
                             <span class="material-symbols-outlined text-primary text-[20px]">stethoscope</span>
                             Doctors on Duty &amp; Queue Load
                         </h3>
-                        <p class="text-[11px] text-on-surface-variant">Live clinical waiting rooms per physician.</p>
                     </div>
                     <a href="doctors.php" class="text-xs text-primary font-bold hover:underline">Manage &rarr;</a>
                 </div>
@@ -413,7 +398,7 @@ include __DIR__ . '/../components/header.php';
                                         <?php endif; ?>
                                     </div>
                                     <span class="text-[10px] text-on-surface-variant mt-0.5">
-                                        <?php echo (int)$doc['completed_today']; ?> seen today
+                                        <?php echo (int)$doc['completed_today']; ?> seen
                                     </span>
                                 </div>
                             </div>
@@ -434,21 +419,20 @@ include __DIR__ . '/../components/header.php';
                     <div class="p-2.5 rounded-xl bg-surface-container-lowest border border-outline-variant">
                         <span class="text-[10px] text-on-surface-variant font-semibold uppercase block">OPD Triage</span>
                         <p class="font-bold text-on-surface text-sm mt-0.5"><?php echo $waitingQueue + $inConsultation; ?> Active</p>
-                        <span class="text-[10px] text-secondary font-semibold">Vitals recorded</span>
                     </div>
 
                     <!-- Laboratory -->
                     <div class="p-2.5 rounded-xl bg-surface-container-lowest border border-outline-variant">
                         <span class="text-[10px] text-on-surface-variant font-semibold uppercase block">Diagnostics Lab</span>
                         <p class="font-bold text-on-surface text-sm mt-0.5"><?php echo $pendingLabOrders; ?> Pending</p>
-                        <span class="text-[10px] text-primary font-semibold"><?php echo $completedLabToday; ?> tests done today</span>
+                        <span class="text-[10px] text-primary font-semibold"><?php echo $completedLabToday; ?> completed</span>
                     </div>
 
                     <!-- Pharmacy -->
                     <div class="p-2.5 rounded-xl bg-surface-container-lowest border border-outline-variant">
                         <span class="text-[10px] text-on-surface-variant font-semibold uppercase block">Pharmacy POS</span>
                         <p class="font-bold text-on-surface text-sm mt-0.5"><?php echo $pendingPrescriptions; ?> Prescriptions</p>
-                        <span class="text-[10px] text-secondary font-semibold"><?php echo $dispensedToday; ?> dispensed today</span>
+                        <span class="text-[10px] text-secondary font-semibold"><?php echo $dispensedToday; ?> dispensed</span>
                     </div>
 
                     <!-- Finance & Billing -->

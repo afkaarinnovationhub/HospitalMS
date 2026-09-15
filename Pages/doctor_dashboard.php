@@ -43,8 +43,8 @@ $waitingQueue = PatientOperation::getQueue([
 
 $stats = ConsultationOperation::getDoctorDashboardStats($doctorId);
 
-$pageTitle = 'Doctor Dashboard - MedCore Systems';
-$headerTitle = 'MedCore Management - Clinical View';
+$pageTitle = 'Doctor Dashboard - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Clinical View';
 $activePage = 'doctor_dashboard';
 
 include __DIR__ . '/../components/header.php';
@@ -116,7 +116,6 @@ include __DIR__ . '/../components/header.php';
             </div>
             <div class="flex items-end gap-sm">
                 <span class="font-display-lg text-2xl sm:text-display-lg text-on-surface font-bold"><?php echo (int)$stats['waiting_patients']; ?></span>
-                <span class="font-body-sm text-xs text-on-surface-variant mb-1">In waiting lobby</span>
             </div>
         </div>
 
@@ -128,7 +127,6 @@ include __DIR__ . '/../components/header.php';
             </div>
             <div class="flex items-end gap-sm">
                 <span class="font-display-lg text-2xl sm:text-display-lg text-on-surface font-bold"><?php echo (int)$stats['in_consultation']; ?></span>
-                <span class="font-body-sm text-xs text-on-surface-variant mb-1">Active encounter</span>
             </div>
         </div>
 
@@ -140,7 +138,6 @@ include __DIR__ . '/../components/header.php';
             </div>
             <div class="flex items-end gap-sm">
                 <span class="font-display-lg text-2xl sm:text-display-lg text-secondary font-bold"><?php echo (int)$stats['completed_today']; ?></span>
-                <span class="font-body-sm text-xs text-secondary mb-1 font-semibold">100% Documented</span>
             </div>
         </div>
     </div>
@@ -196,8 +193,7 @@ include __DIR__ . '/../components/header.php';
                         <tr>
                             <td colspan="5" class="py-8 text-center text-on-surface-variant">
                                 <span class="material-symbols-outlined text-3xl mb-1 text-secondary">check_circle</span>
-                                <p class="font-semibold text-on-surface">No patients currently waiting in your consultation queue.</p>
-                                <p class="text-xs text-on-surface-variant mt-1">When reception check-in assigns patients to you, they will appear here live.</p>
+                                <p class="font-semibold text-on-surface">No patients currently waiting in queue.</p>
                             </td>
                         </tr>
                     <?php else: ?>
@@ -240,6 +236,18 @@ include __DIR__ . '/../components/header.php';
                                         <?php else: ?>
                                             <span class="text-[10px] uppercase font-semibold text-blue-700 dark:text-blue-300 bg-blue-500/10 px-2 py-0.5 rounded-full">
                                                 Waiting
+                                            </span>
+                                        <?php endif; ?>
+                                        <?php 
+                                            $isBillingPaid = ($q['billing_status'] === 'paid' || ($q['invoice_status'] ?? '') === 'paid' || ($q['invoice_status'] ?? '') === 'partial' || (float)($q['current_doctor_fee'] ?? 10) <= 0.0);
+                                        ?>
+                                        <?php if ($isBillingPaid): ?>
+                                            <span class="text-[10px] uppercase font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded-full" title="Consultation fee cleared at cashier">
+                                                ✓ Paid
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="text-[10px] uppercase font-bold text-amber-800 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded-full flex items-center gap-0.5" title="Consultation fee unpaid at cashier">
+                                                <span class="material-symbols-outlined text-[12px]">lock</span> Unpaid
                                             </span>
                                         <?php endif; ?>
                                         <?php if (!empty($q['invoice_due']) && (float)$q['invoice_due'] > 0 && ($q['invoice_status'] ?? '') === 'partial'): ?>
@@ -305,15 +313,22 @@ include __DIR__ . '/../components/header.php';
                                                 View Order
                                             </a>
                                         <?php else: ?>
-                                            <form method="POST" action="doctor_dashboard.php" class="inline">
-                                                <?php echo csrfField(); ?>
-                                                <input type="hidden" name="action" value="call_patient">
-                                                <input type="hidden" name="queue_id" value="<?php echo (int)$q['id']; ?>">
-                                                <button type="submit" class="inline-flex items-center gap-1 px-3.5 py-1.5 bg-primary hover:bg-primary-container text-on-primary font-bold rounded-lg text-xs shadow-xs transition-colors cursor-pointer">
-                                                    <span class="material-symbols-outlined text-[15px]">play_arrow</span>
-                                                    Call In
+                                            <?php if ($isBillingPaid): ?>
+                                                <form method="POST" action="doctor_dashboard.php" class="inline">
+                                                    <?php echo csrfField(); ?>
+                                                    <input type="hidden" name="action" value="call_patient">
+                                                    <input type="hidden" name="queue_id" value="<?php echo (int)$q['id']; ?>">
+                                                    <button type="submit" class="inline-flex items-center gap-1 px-3.5 py-1.5 bg-primary hover:bg-primary-container text-on-primary font-bold rounded-lg text-xs shadow-xs transition-colors cursor-pointer">
+                                                        <span class="material-symbols-outlined text-[15px]">play_arrow</span>
+                                                        Call In
+                                                    </button>
+                                                </form>
+                                            <?php else: ?>
+                                                <button type="button" disabled class="inline-flex items-center gap-1 px-3 py-1.5 bg-surface-container text-on-surface-variant/50 border border-outline-variant font-bold rounded-lg text-xs cursor-not-allowed" title="Bukaankan lacagtiisa consultation-ka weli lama bixin. Fadlan bukaanka u dir Cashier-ka.">
+                                                    <span class="material-symbols-outlined text-[15px]">lock</span>
+                                                    Locked
                                                 </button>
-                                            </form>
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                     </div>
                                 </td>

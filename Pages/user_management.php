@@ -65,8 +65,8 @@ $currentUser = getCurrentUser();
 $currentUserId = (int)($currentUser['id'] ?? 0);
 $isSuperAdmin = ($currentUser['role'] ?? '') === ROLE_SUPERADMIN_ICT;
 
-$pageTitle = 'User Management - MedCore Systems';
-$headerTitle = 'MedCore Management - Staff Users';
+$pageTitle = 'User Management - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Staff Users';
 $activePage = 'users';
 
 include __DIR__ . '/../components/header.php';
@@ -391,7 +391,7 @@ include __DIR__ . '/../components/header.php';
                 </div>
                 <div>
                     <label class="block text-[11px] font-semibold text-on-surface mb-0.5">Email Address *</label>
-                    <input name="email" type="email" required placeholder="e.g. ahmed@medcore.org" class="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-xs text-on-surface focus:border-primary outline-none">
+                    <input name="email" type="email" required placeholder="e.g. ahmed@cibaarhospital.so" class="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-xs text-on-surface focus:border-primary outline-none">
                 </div>
             </div>
 

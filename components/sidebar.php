@@ -70,6 +70,18 @@ $navItems = [
         'url'   => 'laboratory_dashboard.php',
     ],
     [
+        'id'    => 'lab_catalog',
+        'label' => 'Test Catalog',
+        'icon'  => 'science',
+        'url'   => 'lab_catalog.php',
+    ],
+    [
+        'id'    => 'lab_categories',
+        'label' => 'Lab Categories',
+        'icon'  => 'category',
+        'url'   => 'lab_categories.php',
+    ],
+    [
         'id'    => 'pharmacy',
         'label' => 'Pharmacy',
         'icon'  => 'medication',
@@ -130,8 +142,8 @@ $brandHomeUrl = getRoleDefaultPage($userRole);
         <a href="<?php echo htmlspecialchars($brandHomeUrl); ?>" class="flex items-center gap-sm min-w-0">
             <span class="material-symbols-outlined text-primary dark:text-primary-fixed text-[32px] fill shrink-0">local_hospital</span>
             <div class="sidebar-text transition-opacity duration-200">
-                <h1 class="font-headline-md text-base sm:text-headline-md font-bold text-primary dark:text-primary-fixed leading-tight truncate">CIBAAR</h1>
-                <p class="font-label-md text-[11px] text-on-surface-variant truncate">Clinical Operations</p>
+                <h1 class="font-headline-md text-base sm:text-headline-md font-bold text-primary dark:text-primary-fixed leading-tight truncate"><?php echo htmlspecialchars(HOSPITAL_SHORT_NAME); ?></h1>
+                <p class="font-label-md text-[10px] text-on-surface-variant truncate" title="<?php echo htmlspecialchars(HOSPITAL_NAME); ?>"><?php echo htmlspecialchars(HOSPITAL_NAME); ?></p>
             </div>
         </a>
         <!-- Close Button (Visible ONLY on Mobile/Tablet, completely removed on Desktop) -->
@@ -180,7 +192,7 @@ $brandHomeUrl = getRoleDefaultPage($userRole);
         </div>
 
         <!-- Sidebar Sign Out Button -->
-        <a href="logout.php" class="sidebar-logout-btn flex items-center gap-sm px-md py-2 rounded-lg text-error hover:bg-error-container/40 transition-colors font-medium text-xs border border-error/10" title="Sign Out of MedCore Systems">
+        <a href="logout.php" class="sidebar-logout-btn flex items-center gap-sm px-md py-2 rounded-lg text-error hover:bg-error-container/40 transition-colors font-medium text-xs border border-error/10" title="Sign Out of <?php echo htmlspecialchars(HOSPITAL_NAME); ?>">
             <span class="material-symbols-outlined text-[20px] shrink-0">logout</span>
             <span class="sidebar-text font-label-md text-xs whitespace-nowrap">Sign Out</span>
         </a>

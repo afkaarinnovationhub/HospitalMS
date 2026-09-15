@@ -55,6 +55,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         if (isset($result['error'])) {
             $errorMessage = $result['error'];
         }
+    } elseif ($action === 'adjust_stock') {
+        $result = InventoryController::handleStockAdjustment($_POST);
+        if (isset($result['error'])) {
+            $errorMessage = $result['error'];
+        }
     }
 }
 
@@ -75,8 +80,8 @@ $batchStatusFilter    = sanitizeString($_GET['batch_status'] ?? '');
 $allBatches           = ($viewMode === 'batches') ? PharmacyOperation::getAllBatches(!empty($batchStatusFilter) ? $batchStatusFilter : null) : [];
 $recentMovements      = ($viewMode === 'movements') ? PharmacyOperation::getBatchMovements() : [];
 
-$pageTitle = 'Inventory Management - MedCore Systems';
-$headerTitle = 'MedCore Management - Pharmacy Inventory';
+$pageTitle = 'Inventory Management - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Pharmacy Inventory';
 $activePage = 'inventory';
 
 include __DIR__ . '/../components/header.php';
@@ -89,21 +94,25 @@ include __DIR__ . '/../components/header.php';
         <div>
             <h2 class="font-headline-lg text-xl sm:text-headline-lg font-bold text-on-surface">Inventory Management</h2>
             <p class="font-body-md text-xs sm:text-body-md text-on-surface-variant mt-1">
-                Welcome back, <strong class="text-primary font-bold"><?php echo e($currentUser['full_name'] ?? 'Inventory Manager'); ?></strong> • Manage pharmacy stock, track expirations, and restock medications.
+                Welcome back, <strong class="text-primary font-bold"><?php echo e($currentUser['full_name'] ?? 'Inventory Manager'); ?></strong>
             </p>
         </div>
         <div class="flex flex-wrap gap-sm w-full sm:w-auto">
+            <button type="button" onclick="openStockAdjustmentModal()" class="flex-1 sm:flex-none justify-center bg-amber-600 hover:bg-amber-700 text-white px-3 sm:px-4 py-2 rounded-lg font-label-md text-xs sm:text-label-md transition-colors flex items-center gap-1.5 font-bold cursor-pointer shadow-xs">
+                <span class="material-symbols-outlined text-[16px]">tune</span>
+                Stock Adjustment
+            </button>
             <button type="button" onclick="openAddSupplierModal()" class="flex-1 sm:flex-none justify-center bg-surface border border-outline-variant hover:bg-surface-container-high text-on-surface px-3 sm:px-4 py-2 rounded-lg font-label-md text-xs sm:text-label-md transition-colors flex items-center gap-1.5 font-bold cursor-pointer shadow-xs">
                 <span class="material-symbols-outlined text-[16px] text-primary">domain_add</span>
                 + Add Supplier
             </button>
             <button type="button" onclick="openSupplierDebtModal()" class="flex-1 sm:flex-none justify-center bg-surface border border-error text-error px-3 sm:px-4 py-2 rounded-lg font-label-md text-xs sm:text-label-md hover:bg-error-container transition-colors flex items-center gap-2 font-medium cursor-pointer shadow-xs">
                 <span class="material-symbols-outlined text-sm">receipt_long</span>
-                Supplier Debts (<?php echo count($supplierDebts); ?>)
+                Supplier Debts
             </button>
             <button type="button" onclick="openRestockModal()" class="flex-1 sm:flex-none justify-center bg-primary text-on-primary px-3 sm:px-4 py-2 rounded-lg font-label-md text-xs sm:text-label-md hover:bg-primary-container hover:text-on-primary-container transition-colors flex items-center gap-2 shadow-sm font-semibold cursor-pointer">
                 <span class="material-symbols-outlined text-sm">add_box</span>
-                Add / Restock Stock
+                + Restock Stock
             </button>
         </div>
     </div>
@@ -180,7 +189,7 @@ include __DIR__ . '/../components/header.php';
         </div>
     </div>
 
-    <!-- GL Account 1200 Inventory Reconciliation Status -->
+    <!-- Inventory Reconciliation Status -->
     <div class="mb-lg p-3.5 sm:p-4 rounded-xl <?php echo $reconciliation['is_reconciled'] ? 'bg-secondary-fixed/30 border border-secondary/40 text-on-secondary-fixed-variant' : 'bg-error-container border border-error/40 text-on-error-container'; ?> flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
         <div class="flex items-start gap-3">
             <span class="material-symbols-outlined <?php echo $reconciliation['is_reconciled'] ? 'text-secondary' : 'text-error'; ?> text-[24px] shrink-0 mt-0.5">
@@ -188,27 +197,19 @@ include __DIR__ . '/../components/header.php';
             </span>
             <div>
                 <div class="flex items-center gap-2">
-                    <span class="font-bold text-xs sm:text-sm">FIFO Batch Ledger &amp; GL Account 1200 Reconciliation</span>
+                    <span class="font-bold text-xs sm:text-sm">Batch Ledger &amp; GL Inventory Reconciliation</span>
                     <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider <?php echo $reconciliation['is_reconciled'] ? 'bg-secondary text-on-secondary' : 'bg-error text-on-error'; ?>">
-                        <?php echo $reconciliation['is_reconciled'] ? '100% In-Sync' : 'Discrepancy Detected'; ?>
+                        <?php echo $reconciliation['is_reconciled'] ? 'Balanced' : 'Discrepancy'; ?>
                     </span>
                 </div>
                 <p class="text-[11px] sm:text-xs opacity-90 mt-0.5">
-                    Active Batches Valuation: <strong>$<?php echo number_format((float)$reconciliation['batch_inventory_valuation'], 2); ?></strong>
-                    &bull; GL Pharmacy Inventory Asset (1200): <strong>$<?php echo number_format((float)$reconciliation['gl_inventory_balance'], 2); ?></strong>
+                    Batches Valuation: <strong>$<?php echo number_format((float)$reconciliation['batch_inventory_valuation'], 2); ?></strong>
+                    &bull; GL Balance: <strong>$<?php echo number_format((float)$reconciliation['gl_inventory_balance'], 2); ?></strong>
                     <?php if (!$reconciliation['is_reconciled']): ?>
                         &bull; Variance: <strong class="text-error font-bold">$<?php echo number_format(abs((float)$reconciliation['discrepancy']), 2); ?></strong>
-                    <?php else: ?>
-                        &bull; Variance: <strong class="text-secondary font-bold">$0.00</strong>
                     <?php endif; ?>
                 </p>
             </div>
-        </div>
-        <div class="flex items-center gap-2 text-xs">
-            <span class="inline-flex items-center gap-1 bg-surface/80 border border-outline-variant px-2.5 py-1 rounded-lg text-[11px] font-semibold text-on-surface">
-                <span class="material-symbols-outlined text-[14px] text-primary">swap_vert</span>
-                FIFO Option A: Expiry ASC &rarr; Received ASC
-            </span>
         </div>
     </div>
 
@@ -216,15 +217,15 @@ include __DIR__ . '/../components/header.php';
     <div class="flex items-center gap-2 mb-md border-b border-outline-variant pb-2">
         <a href="inventory_management.php?view=summary" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 <?php echo ($viewMode === 'summary') ? 'bg-primary text-on-primary shadow-xs' : 'bg-surface text-on-surface-variant hover:bg-surface-container-high border border-outline-variant'; ?>">
             <span class="material-symbols-outlined text-[16px]">inventory_2</span>
-            Medication Summary
+            Medication Catalog
         </a>
         <a href="inventory_management.php?view=batches" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 <?php echo ($viewMode === 'batches') ? 'bg-primary text-on-primary shadow-xs' : 'bg-surface text-on-surface-variant hover:bg-surface-container-high border border-outline-variant'; ?>">
             <span class="material-symbols-outlined text-[16px]">layers</span>
-            FIFO Batches &amp; Expiry
+            Batches &amp; Expiry
         </a>
         <a href="inventory_management.php?view=movements" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 <?php echo ($viewMode === 'movements') ? 'bg-primary text-on-primary shadow-xs' : 'bg-surface text-on-surface-variant hover:bg-surface-container-high border border-outline-variant'; ?>">
             <span class="material-symbols-outlined text-[16px]">history</span>
-            Stock Movement Audit Log
+            Stock Movements
         </a>
     </div>
 
@@ -275,8 +276,8 @@ include __DIR__ . '/../components/header.php';
                         <th class="py-3 px-3 sm:px-4 border-b border-outline-variant font-semibold">Category</th>
                         <th class="py-3 px-3 sm:px-4 border-b border-outline-variant font-semibold w-40 sm:w-48">Stock Level</th>
                         <th class="py-3 px-3 sm:px-4 border-b border-outline-variant font-semibold">Nearest Expiry</th>
-                        <th class="py-3 px-3 sm:px-4 border-b border-outline-variant font-semibold text-right" title="Next batch to dispense — cost (FIFO priority sequence)">Cost Price (Next Batch)</th>
-                        <th class="py-3 px-3 sm:px-4 border-b border-outline-variant font-semibold text-right" title="Medication-level retail selling price for patient billing">Selling Price</th>
+                        <th class="py-3 px-3 sm:px-4 border-b border-outline-variant font-semibold text-right">Unit Cost</th>
+                        <th class="py-3 px-3 sm:px-4 border-b border-outline-variant font-semibold text-right">Selling Price</th>
                         <th class="py-3 px-3 sm:px-4 border-b border-outline-variant font-semibold text-center">Status</th>
                         <th class="py-3 px-3 sm:px-4 border-b border-outline-variant font-semibold text-center">Restock</th>
                     </tr>
@@ -344,6 +345,9 @@ include __DIR__ . '/../components/header.php';
                                     <div class="flex items-center justify-center gap-1">
                                         <button type="button" onclick="prepareRestockForMed(<?php echo (int)$med['id']; ?>, '<?php echo e(addslashes($med['name'])); ?>', <?php echo (float)$med['cost_price']; ?>, <?php echo (float)$med['unit_price']; ?>)" class="text-primary hover:bg-primary-fixed p-1.5 rounded transition-colors cursor-pointer" title="Restock this medication">
                                             <span class="material-symbols-outlined text-[18px]">add_shopping_cart</span>
+                                        </button>
+                                        <button type="button" onclick="openStockAdjustmentModal(<?php echo (int)$med['id']; ?>, '<?php echo e(addslashes($med['name'])); ?>', <?php echo (int)$med['current_stock']; ?>)" class="text-amber-600 hover:bg-amber-100 dark:hover:bg-amber-950/40 p-1.5 rounded transition-colors cursor-pointer" title="Adjust / Count Stock (Dib-u-tirin)">
+                                            <span class="material-symbols-outlined text-[18px]">tune</span>
                                         </button>
                                     </div>
                                 </td>
@@ -523,6 +527,12 @@ include __DIR__ . '/../components/header.php';
                             } elseif ($type === 'expired_writeoff') {
                                 $typeBadge = '<span class="px-2 py-0.5 bg-error text-on-error rounded-full text-[10px] font-bold">Write-Off</span>';
                                 $qtyDisplay = '<span class="font-bold text-error">-' . number_format((int)$m['quantity']) . '</span>';
+                            } elseif ($type === 'adjustment') {
+                                $qtyVal = (int)$m['quantity'];
+                                $typeBadge = '<span class="px-2 py-0.5 bg-amber-500/20 text-amber-800 dark:text-amber-300 rounded-full text-[10px] font-bold">Adjustment</span>';
+                                $qtyDisplay = $qtyVal > 0 
+                                    ? '<span class="font-bold text-secondary">+' . number_format($qtyVal) . '</span>'
+                                    : '<span class="font-bold text-error">' . number_format($qtyVal) . '</span>';
                             } else {
                                 $typeBadge = '<span class="px-2 py-0.5 bg-tertiary-fixed text-on-tertiary-fixed rounded-full text-[10px] font-bold">' . e(ucfirst($type)) . '</span>';
                                 $qtyDisplay = '<span class="font-bold">' . number_format((int)$m['quantity']) . '</span>';
@@ -1129,5 +1139,205 @@ include __DIR__ . '/../components/header.php';
         </form>
     </div>
 </div>
+
+<!-- MODAL: Physical Stock Count & Inventory Adjustment -->
+<div id="stock-adjustment-modal" class="fixed inset-0 z-50 bg-black/60 hidden backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-surface rounded-2xl border border-outline-variant max-w-lg w-full p-6 shadow-2xl custom-scrollbar max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center pb-3 border-b border-outline-variant mb-4">
+            <div class="flex items-center gap-2">
+                <span class="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-600 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-[24px]">tune</span>
+                </span>
+                <div>
+                    <h3 class="font-headline-sm text-base font-bold text-on-surface">Physical Stock Adjustment</h3>
+                    <p class="text-xs text-on-surface-variant">Dib-u-tirinta iyo toosinta tirada daawada (Reconciliation).</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeStockAdjustmentModal()" class="text-on-surface-variant hover:text-on-surface p-1 rounded-lg cursor-pointer">
+                <span class="material-symbols-outlined text-[20px]">close</span>
+            </button>
+        </div>
+
+        <form method="POST" action="inventory_management.php" class="space-y-4" onsubmit="return validateAdjustmentForm(this);">
+            <?php echo csrfField(); ?>
+            <input type="hidden" name="action" value="adjust_stock">
+            <input type="hidden" name="redirect" value="inventory_management.php?view=summary">
+
+            <div class="p-3 bg-amber-500/10 rounded-xl border border-amber-500/20 text-xs text-amber-900 dark:text-amber-300 flex items-start gap-2.5">
+                <span class="material-symbols-outlined text-amber-600 text-[20px] shrink-0 mt-0.5">verified_user</span>
+                <div>
+                    <strong class="font-bold">General Ledger Integration:</strong>
+                    <p class="mt-0.5">Discrepancies automatically post a balanced entry between <strong>1200 - Pharmacy Inventory Asset</strong> and <strong>6080 - Inventory Adjustment &amp; Shrinkage Loss</strong>.</p>
+                </div>
+            </div>
+
+            <!-- Medication Selection -->
+            <div>
+                <label class="block text-xs font-bold text-on-surface mb-1">Select Medication (Daawada) *</label>
+                <select name="medication_id" id="adj-med-select" required onchange="onAdjustmentMedicationChange(this)" class="w-full bg-surface-container-low border border-outline-variant rounded-xl p-2.5 text-xs font-semibold text-on-surface focus:border-primary outline-none">
+                    <option value="">-- Select Medication to Adjust --</option>
+                    <?php foreach ($medications as $med): ?>
+                        <option value="<?php echo (int)$med['id']; ?>" data-stock="<?php echo (int)$med['current_stock']; ?>" data-name="<?php echo e($med['name']); ?>">
+                            <?php echo e($med['name']); ?> (Current Stock: <?php echo number_format((int)$med['current_stock']); ?>)
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <!-- Stock Numbers Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-[11px] font-semibold text-on-surface-variant mb-1">Current System Stock</label>
+                    <div class="p-2.5 bg-surface-container-low rounded-xl border border-outline-variant font-mono font-bold text-sm text-on-surface" id="adj-system-stock-display">
+                        0 units
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-on-surface mb-1">Physical Counted Stock (Tirada Dhabta ah) *</label>
+                    <input name="counted_stock" id="adj-counted-input" type="number" min="0" required placeholder="e.g. 92" oninput="calculateAdjustmentVariance()" class="w-full bg-surface-container-low border border-outline-variant rounded-xl p-2.5 text-sm font-mono font-bold text-on-surface focus:border-primary outline-none">
+                </div>
+            </div>
+
+            <!-- Real-time Discrepancy Indicator -->
+            <div id="adj-variance-card" class="hidden p-3 rounded-xl border text-xs flex items-center justify-between">
+                <span class="font-semibold text-on-surface" id="adj-variance-label">Discrepancy / Variance:</span>
+                <span class="font-mono font-bold text-sm" id="adj-variance-value">0 units</span>
+            </div>
+
+            <!-- Adjustment Reason -->
+            <div>
+                <label class="block text-xs font-bold text-on-surface mb-1">Reason for Discrepancy (Sababta) *</label>
+                <select name="reason" required class="w-full bg-surface-container-low border border-outline-variant rounded-xl p-2.5 text-xs font-semibold text-on-surface focus:border-primary outline-none">
+                    <option value="physical_count">Physical Stock Count (Dib-u-tirin Joogto ah)</option>
+                    <option value="damaged">Damaged / Broken Medicine (Daawo Jabtay ama Xumaatay)</option>
+                    <option value="expired">Expired Medicine Write-off (Daawo Dhacday)</option>
+                    <option value="discrepancy">Missing Stock / Theft / Loss (Daawo Maqan)</option>
+                    <option value="found">Found Stock / Overage (Daawo Dheeraad ah oo la helay)</option>
+                    <option value="correction">Data Entry / Typo Correction (Sixid Khalad)</option>
+                </select>
+            </div>
+
+            <!-- Notes -->
+            <div>
+                <label class="block text-[11px] font-semibold text-on-surface mb-1">Audit Notes / Comments</label>
+                <textarea name="notes" rows="2" placeholder="e.g. Annual stocktake discrepancy. Count verified by Chief Pharmacist." class="w-full bg-surface-container-low border border-outline-variant rounded-xl p-2 text-xs text-on-surface focus:border-primary outline-none resize-none"></textarea>
+            </div>
+
+            <div class="pt-3 border-t border-outline-variant flex justify-end gap-2">
+                <button type="button" onclick="closeStockAdjustmentModal()" class="px-3.5 py-2 bg-surface-container text-on-surface rounded-xl text-xs font-semibold hover:bg-surface-container-high cursor-pointer">
+                    Cancel
+                </button>
+                <button type="submit" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5 transition-colors">
+                    <span class="material-symbols-outlined text-[16px]">check_circle</span>
+                    Save Adjustment &amp; Post Entry
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    let currentAdjSystemStock = 0;
+
+    function openStockAdjustmentModal(medId = null, medName = '', currentStock = null) {
+        const modal = document.getElementById('stock-adjustment-modal');
+        const select = document.getElementById('adj-med-select');
+        const sysStockDisplay = document.getElementById('adj-system-stock-display');
+        const countedInput = document.getElementById('adj-counted-input');
+        const varianceCard = document.getElementById('adj-variance-card');
+
+        countedInput.value = '';
+        varianceCard.classList.add('hidden');
+
+        if (medId) {
+            select.value = medId;
+            currentAdjSystemStock = currentStock !== null ? parseInt(currentStock, 10) : 0;
+            sysStockDisplay.textContent = currentAdjSystemStock + ' units';
+        } else {
+            select.value = '';
+            currentAdjSystemStock = 0;
+            sysStockDisplay.textContent = 'Select a medicine first';
+        }
+
+        modal.classList.remove('hidden');
+    }
+
+    function closeStockAdjustmentModal() {
+        document.getElementById('stock-adjustment-modal').classList.add('hidden');
+    }
+
+    function onAdjustmentMedicationChange(select) {
+        const sysStockDisplay = document.getElementById('adj-system-stock-display');
+        const opt = select.options[select.selectedIndex];
+        if (opt && opt.value) {
+            currentAdjSystemStock = parseInt(opt.getAttribute('data-stock') || '0', 10);
+            sysStockDisplay.textContent = currentAdjSystemStock + ' units';
+        } else {
+            currentAdjSystemStock = 0;
+            sysStockDisplay.textContent = 'Select a medicine first';
+        }
+        calculateAdjustmentVariance();
+    }
+
+    function calculateAdjustmentVariance() {
+        const countedInput = document.getElementById('adj-counted-input');
+        const varianceCard = document.getElementById('adj-variance-card');
+        const varianceVal = document.getElementById('adj-variance-value');
+        const varianceLabel = document.getElementById('adj-variance-label');
+
+        if (countedInput.value === '') {
+            varianceCard.classList.add('hidden');
+            return;
+        }
+
+        const counted = parseInt(countedInput.value, 10);
+        if (isNaN(counted)) {
+            varianceCard.classList.add('hidden');
+            return;
+        }
+
+        const diff = counted - currentAdjSystemStock;
+        varianceCard.classList.remove('hidden');
+
+        if (diff === 0) {
+            varianceCard.className = 'p-3 rounded-xl border border-secondary/30 bg-secondary/10 text-xs flex items-center justify-between text-secondary';
+            varianceLabel.textContent = 'Status: Count matches recorded stock (No change)';
+            varianceVal.textContent = '0 units';
+        } else if (diff < 0) {
+            varianceCard.className = 'p-3 rounded-xl border border-error/30 bg-error-container/40 text-xs flex items-center justify-between text-error';
+            varianceLabel.textContent = 'Shortage / Shrinkage (Dhimis):';
+            varianceVal.textContent = diff + ' units';
+        } else {
+            varianceCard.className = 'p-3 rounded-xl border border-secondary/30 bg-secondary-fixed/30 text-xs flex items-center justify-between text-secondary';
+            varianceLabel.textContent = 'Surplus / Overage (Dheeraad):';
+            varianceVal.textContent = '+' + diff + ' units';
+        }
+    }
+
+    function validateAdjustmentForm(form) {
+        const countedInput = document.getElementById('adj-counted-input');
+        const select = document.getElementById('adj-med-select');
+
+        if (!select.value) {
+            alert('Please select a medication to adjust.');
+            return false;
+        }
+
+        const counted = parseInt(countedInput.value, 10);
+        if (isNaN(counted) || counted < 0) {
+            alert('Please enter a valid non-negative physical counted stock.');
+            return false;
+        }
+
+        const diff = counted - currentAdjSystemStock;
+        if (diff === 0) {
+            alert('The physical count entered (' + counted + ') is identical to the current recorded stock. No adjustment is required.');
+            return false;
+        }
+
+        const actionWord = diff < 0 ? 'REDUCE by ' + Math.abs(diff) + ' units (Shortage)' : 'INCREASE by +' + diff + ' units (Surplus)';
+        return confirm('Are you sure you want to adjust stock from ' + currentAdjSystemStock + ' to ' + counted + ' units (' + actionWord + ')?\n\nThis will permanently update inventory and post a General Ledger entry.');
+    }
+</script>
 
 <?php include __DIR__ . '/../components/footer.php'; ?>

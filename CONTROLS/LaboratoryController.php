@@ -247,22 +247,22 @@ class LaboratoryController
 
             $price = !empty($post['price']) ? (float)$post['price'] : 10.00;
             $category = sanitizeString($post['category'] ?? 'General Laboratory');
-            $specimenType = sanitizeString($post['specimen_type'] ?? 'Venous Blood / Serum');
+            $specimenType = sanitizeString($post['specimen_type'] ?? 'Standard Specimen');
             $turnaround = !empty($post['turnaround_minutes']) ? (int)$post['turnaround_minutes'] : 30;
-            $normalRange = sanitizeString($post['normal_range'] ?? 'Negative / Normal Reference');
+            $normalRange = sanitizeString($post['normal_range'] ?? 'Standard Reference');
 
             $testId = LaboratoryOperation::createLabTest([
                 'test_name'          => $testName,
                 'price'              => $price,
                 'category'           => $category ?: 'General Laboratory',
-                'specimen_type'      => $specimenType ?: 'Venous Blood / Serum',
+                'specimen_type'      => $specimenType ?: 'Standard Specimen',
                 'turnaround_minutes' => $turnaround,
-                'normal_range'       => $normalRange,
+                'normal_range'       => $normalRange ?: 'Standard Reference',
             ]);
 
             setFlashMessage('success', sprintf('Diagnostic lab test "%s" successfully added to catalog.', $testName));
 
-            $redirectUrl = !empty($post['redirect']) ? $post['redirect'] : 'laboratory_dashboard.php?tab=catalog';
+            $redirectUrl = !empty($post['redirect']) ? $post['redirect'] : 'lab_catalog.php';
             if (!defined('HPMS_TESTING')) {
                 safeRedirect($redirectUrl);
             }
@@ -300,26 +300,27 @@ class LaboratoryController
                 return ['error' => 'Diagnostic test name is required.'];
             }
 
-            $price = isset($post['price']) ? (float)$post['price'] : 10.00;
-            $category = sanitizeString($post['category'] ?? 'General Laboratory');
-            $specimenType = sanitizeString($post['specimen_type'] ?? 'Venous Blood / Serum');
-            $turnaround = !empty($post['turnaround_minutes']) ? (int)$post['turnaround_minutes'] : 30;
-            $normalRange = sanitizeString($post['normal_range'] ?? 'Negative / Normal Reference');
-            $isActive = isset($post['is_active']) ? (int)$post['is_active'] : 1;
+            $existing = LaboratoryOperation::getLabTestById($testId);
+            $price = isset($post['price']) ? (float)$post['price'] : ($existing['price'] ?? 10.00);
+            $category = sanitizeString($post['category'] ?? ($existing['category'] ?? 'General Laboratory'));
+            $specimenType = isset($post['specimen_type']) ? sanitizeString($post['specimen_type']) : ($existing['specimen_type'] ?? 'Standard Specimen');
+            $turnaround = !empty($post['turnaround_minutes']) ? (int)$post['turnaround_minutes'] : ($existing['turnaround_minutes'] ?? 30);
+            $normalRange = isset($post['normal_range']) ? sanitizeString($post['normal_range']) : ($existing['normal_range'] ?? 'Standard Reference');
+            $isActive = isset($post['is_active']) ? (int)$post['is_active'] : (isset($existing['is_active']) ? (int)$existing['is_active'] : 1);
 
             LaboratoryOperation::updateLabTest($testId, [
                 'test_name'          => $testName,
                 'price'              => $price,
                 'category'           => $category ?: 'General Laboratory',
-                'specimen_type'      => $specimenType ?: 'Venous Blood / Serum',
+                'specimen_type'      => $specimenType ?: 'Standard Specimen',
                 'turnaround_minutes' => $turnaround,
-                'normal_range'       => $normalRange,
+                'normal_range'       => $normalRange ?: 'Standard Reference',
                 'is_active'          => $isActive,
             ]);
 
             setFlashMessage('success', sprintf('Diagnostic lab test "%s" successfully updated.', $testName));
 
-            $redirectUrl = !empty($post['redirect']) ? $post['redirect'] : 'laboratory_dashboard.php?tab=catalog';
+            $redirectUrl = !empty($post['redirect']) ? $post['redirect'] : 'lab_catalog.php';
             if (!defined('HPMS_TESTING')) {
                 safeRedirect($redirectUrl);
             }
@@ -355,7 +356,7 @@ class LaboratoryController
             LaboratoryOperation::toggleLabTestStatus($testId);
             setFlashMessage('success', 'Diagnostic lab test status updated successfully.');
 
-            $redirectUrl = !empty($post['redirect']) ? $post['redirect'] : 'laboratory_dashboard.php?tab=catalog';
+            $redirectUrl = !empty($post['redirect']) ? $post['redirect'] : 'lab_catalog.php';
             if (!defined('HPMS_TESTING')) {
                 safeRedirect($redirectUrl);
             }
@@ -391,7 +392,7 @@ class LaboratoryController
             LaboratoryOperation::deleteLabTest($testId);
             setFlashMessage('success', 'Diagnostic lab test deleted successfully.');
 
-            $redirectUrl = !empty($post['redirect']) ? $post['redirect'] : 'laboratory_dashboard.php?tab=catalog';
+            $redirectUrl = !empty($post['redirect']) ? $post['redirect'] : 'lab_catalog.php';
             if (!defined('HPMS_TESTING')) {
                 safeRedirect($redirectUrl);
             }
@@ -430,7 +431,7 @@ class LaboratoryController
 
             setFlashMessage('success', sprintf('Laboratory category "%s" successfully registered.', $name));
 
-            $redirectUrl = !empty($post['redirect']) ? $post['redirect'] : 'laboratory_dashboard.php?tab=catalog';
+            $redirectUrl = !empty($post['redirect']) ? $post['redirect'] : 'lab_categories.php';
             if (!defined('HPMS_TESTING')) {
                 safeRedirect($redirectUrl);
             }
@@ -438,6 +439,87 @@ class LaboratoryController
 
         } catch (Exception $e) {
             error_log('[HPMS CREATE LAB CATEGORY ERROR] ' . $e->getMessage());
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Handles updating an existing diagnostic laboratory category.
+     *
+     * @param array $post
+     * @return array|null
+     */
+    public static function handleUpdateLabCategory(array $post): ?array
+    {
+        initSecureSession();
+        requireLogin();
+
+        if (!verifyCsrfToken($post['csrf_token'] ?? null)) {
+            return ['error' => 'Security token invalid or expired.'];
+        }
+
+        try {
+            $catId = (int)($post['category_id'] ?? 0);
+            if ($catId <= 0) {
+                return ['error' => 'Invalid laboratory category ID specified.'];
+            }
+
+            $name = sanitizeString($post['name'] ?? ($post['category_name'] ?? ''));
+            if (empty($name)) {
+                return ['error' => 'Laboratory category name is required.'];
+            }
+
+            $description = sanitizeString($post['description'] ?? '');
+
+            LaboratoryOperation::updateLabCategory($catId, $name, $description);
+
+            setFlashMessage('success', sprintf('Laboratory category "%s" updated successfully.', $name));
+
+            $redirectUrl = !empty($post['redirect']) ? $post['redirect'] : 'lab_categories.php';
+            if (!defined('HPMS_TESTING')) {
+                safeRedirect($redirectUrl);
+            }
+            return ['success' => true, 'category_id' => $catId, 'name' => $name];
+
+        } catch (Exception $e) {
+            error_log('[HPMS UPDATE LAB CATEGORY ERROR] ' . $e->getMessage());
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Handles deleting a diagnostic laboratory category.
+     *
+     * @param array $post
+     * @return array|null
+     */
+    public static function handleDeleteLabCategory(array $post): ?array
+    {
+        initSecureSession();
+        requireLogin();
+
+        if (!verifyCsrfToken($post['csrf_token'] ?? null)) {
+            return ['error' => 'Security token invalid or expired.'];
+        }
+
+        try {
+            $catId = (int)($post['category_id'] ?? 0);
+            if ($catId <= 0) {
+                return ['error' => 'Invalid laboratory category ID specified.'];
+            }
+
+            LaboratoryOperation::deleteLabCategory($catId);
+
+            setFlashMessage('success', 'Laboratory category deleted successfully.');
+
+            $redirectUrl = !empty($post['redirect']) ? $post['redirect'] : 'lab_categories.php';
+            if (!defined('HPMS_TESTING')) {
+                safeRedirect($redirectUrl);
+            }
+            return ['success' => true, 'category_id' => $catId];
+
+        } catch (Exception $e) {
+            error_log('[HPMS DELETE LAB CATEGORY ERROR] ' . $e->getMessage());
             return ['error' => $e->getMessage()];
         }
     }

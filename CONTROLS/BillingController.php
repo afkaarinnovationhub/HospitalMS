@@ -121,12 +121,16 @@ class BillingController
                 ];
             }
 
-            setFlashMessage('success', sprintf(
-                'Payment of $%.2f processed successfully for Invoice #%s. %s is ready for printing.',
+            $successMsg = sprintf(
+                'Payment of $%.2f processed successfully for Invoice #%s.',
                 $result['amount_paid'],
-                $result['invoice_number'],
-                $_SESSION['hpms_print_paid_token']['receipt_title'] ?? 'Receipt'
-            ));
+                $result['invoice_number']
+            );
+            if (!empty($invDetails['due_amount']) && (float)$invDetails['due_amount'] > 0.001) {
+                $successMsg .= sprintf(' Haraaga ($%.2f) waxaa loo diiwaangeliyay Deyn (Accounts Receivable 1100).', (float)$invDetails['due_amount']);
+            }
+            $successMsg .= ' ' . ($_SESSION['hpms_print_paid_token']['receipt_title'] ?? 'Receipt') . ' is ready for printing.';
+            setFlashMessage('success', $successMsg);
 
             $redirectUrl = !empty($post['redirect']) ? $post['redirect'] : "billing_payments.php?invoice_id={$invoiceId}&paid=1";
             if (!defined('HPMS_TESTING')) {

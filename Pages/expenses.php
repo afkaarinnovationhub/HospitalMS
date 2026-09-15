@@ -48,8 +48,8 @@ foreach ($expenses as $e) {
     $totalExpenseAmount += (float)$e['amount'];
 }
 
-$pageTitle = 'Operating Expenses - MedCore Systems';
-$headerTitle = 'MedCore Management - Expenses';
+$pageTitle = 'Operating Expenses - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Expenses';
 $activePage = 'expenses';
 
 include __DIR__ . '/../components/header.php';
@@ -87,17 +87,14 @@ include __DIR__ . '/../components/header.php';
                 </a>
                 <h2 class="font-headline-md text-xl sm:text-2xl font-bold text-on-surface flex items-center gap-2">
                     <span class="material-symbols-outlined text-primary text-[28px]">payments</span>
-                    Hospital Operating Expenses Tracker
+                    Operating Expenses
                 </h2>
             </div>
-            <p class="font-body-sm text-xs sm:text-sm text-on-surface-variant mt-0.5 ml-7">
-                Track and categorize clinical disbursements, facility rent, utilities, and payroll.
-            </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <button type="button" onclick="openExpenseModal()" class="px-3.5 py-2 bg-primary hover:bg-primary-container text-on-primary font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer">
                 <span class="material-symbols-outlined text-[18px]">add_circle</span>
-                Record New Expense
+                + New Expense
             </button>
             <button type="button" onclick="window.print()" class="px-3.5 py-2 bg-surface-container border border-outline-variant hover:bg-surface-container-high text-on-surface font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs">
                 <span class="material-symbols-outlined text-[18px]">print</span>

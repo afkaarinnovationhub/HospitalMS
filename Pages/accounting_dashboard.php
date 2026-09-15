@@ -46,6 +46,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         if (isset($result['error'])) {
             $errorMessage = $result['error'];
         }
+    } elseif ($action === 'record_transfer') {
+        $result = AccountingController::handleRecordTransfer($_POST);
+        if (isset($result['error'])) {
+            $errorMessage = $result['error'];
+        }
     }
 }
 
@@ -56,9 +61,11 @@ $ar = AccountingOperation::getAccountsReceivableReport();
 $ap = AccountingOperation::getAccountsPayableReport();
 $recentExpenses = AccountingOperation::getExpenses(date('Y-m-01'), date('Y-m-d'));
 $expenseAccounts = AccountingOperation::getAllAccounts('expense');
+$liquidAccounts = AccountingOperation::getLiquidMoneyAccounts();
+$recentTransfers = AccountingOperation::getAccountTransfers(null, null, 10);
 
-$pageTitle = 'Accounting & Finance Dashboard - MedCore Systems';
-$headerTitle = 'MedCore Management - Accounting & Finance';
+$pageTitle = 'Accounting & Finance Dashboard - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Accounting & Finance';
 $activePage = 'accounting';
 
 include __DIR__ . '/../components/header.php';
@@ -92,16 +99,20 @@ include __DIR__ . '/../components/header.php';
         <div>
             <h2 class="font-headline-md text-xl sm:text-2xl font-bold text-on-surface flex items-center gap-2">
                 <span class="material-symbols-outlined text-primary text-[28px]">account_balance</span>
-                Hospital Accounting &amp; Financial Management
+                Accounting &amp; Finance
             </h2>
             <p class="font-body-sm text-xs sm:text-sm text-on-surface-variant mt-0.5">
-                Welcome back, <strong class="text-primary font-bold"><?php echo e($currentUser['full_name'] ?? 'Financial Accountant'); ?></strong> • Financial statements, General Ledger, Profit &amp; Loss, and Ledgers.
+                Welcome back, <strong class="text-primary font-bold"><?php echo e($currentUser['full_name'] ?? 'Financial Accountant'); ?></strong>
             </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="openTransferModal()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer">
+                <span class="material-symbols-outlined text-[18px]">swap_horiz</span>
+                Transfer Money
+            </button>
             <button type="button" onclick="openCapitalModal()" class="px-3.5 py-2 bg-secondary hover:bg-on-secondary-container text-on-secondary font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer">
                 <span class="material-symbols-outlined text-[18px]">account_balance_wallet</span>
-                + Capital / Investment
+                Capital / Investment
             </button>
             <button type="button" onclick="openExpenseModal()" class="px-3.5 py-2 bg-primary hover:bg-primary-container text-on-primary font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer">
                 <span class="material-symbols-outlined text-[18px]">receipt_long</span>
@@ -109,7 +120,7 @@ include __DIR__ . '/../components/header.php';
             </button>
             <button type="button" onclick="openCreateAccountModal()" class="px-3.5 py-2 bg-surface-container border border-outline-variant hover:bg-surface-container-high text-on-surface font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer">
                 <span class="material-symbols-outlined text-[18px]">add_circle</span>
-                Add New Account
+                New Account
             </button>
         </div>
     </div>
@@ -122,7 +133,7 @@ include __DIR__ . '/../components/header.php';
         </a>
         <a href="profit_and_loss.php" class="px-3.5 py-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-lg flex items-center gap-1.5 shrink-0 transition-colors">
             <span class="material-symbols-outlined text-[16px]">trending_up</span>
-            Profit &amp; Loss (P&amp;L)
+            Profit &amp; Loss
         </a>
         <a href="balance_sheet.php" class="px-3.5 py-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-lg flex items-center gap-1.5 shrink-0 transition-colors">
             <span class="material-symbols-outlined text-[16px]">balance</span>
@@ -134,15 +145,15 @@ include __DIR__ . '/../components/header.php';
         </a>
         <a href="accounts_receivable.php" class="px-3.5 py-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-lg flex items-center gap-1.5 shrink-0 transition-colors">
             <span class="material-symbols-outlined text-[16px]">person_pin</span>
-            Accounts Receivable (AR)
+            Accounts Receivable
         </a>
         <a href="accounts_payable.php" class="px-3.5 py-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-lg flex items-center gap-1.5 shrink-0 transition-colors">
             <span class="material-symbols-outlined text-[16px]">store</span>
-            Accounts Payable (AP)
+            Accounts Payable
         </a>
         <a href="expenses.php" class="px-3.5 py-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-lg flex items-center gap-1.5 shrink-0 transition-colors">
             <span class="material-symbols-outlined text-[16px]">payments</span>
-            Expenses Tracker
+            Expenses
         </a>
         <a href="chart_of_accounts.php" class="px-3.5 py-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-lg flex items-center gap-1.5 shrink-0 transition-colors">
             <span class="material-symbols-outlined text-[16px]">list_alt</span>
@@ -162,10 +173,6 @@ include __DIR__ . '/../components/header.php';
             </div>
             <div class="mt-3">
                 <h3 class="text-2xl font-bold text-on-surface font-mono">$<?php echo number_format((float)$kpis['monthly_revenue'], 2); ?></h3>
-                <p class="text-[11px] text-secondary font-semibold flex items-center gap-1 mt-1">
-                    <span class="material-symbols-outlined text-[14px]">insights</span>
-                    Pharmacy, Consults &amp; Labs
-                </p>
             </div>
         </div>
 
@@ -179,9 +186,6 @@ include __DIR__ . '/../components/header.php';
             </div>
             <div class="mt-3">
                 <h3 class="text-2xl font-bold text-error font-mono">$<?php echo number_format((float)$kpis['monthly_expenses'], 2); ?></h3>
-                <p class="text-[11px] text-on-surface-variant mt-1">
-                    Rent, Utilities, Supplies &amp; Salaries
-                </p>
             </div>
         </div>
 
@@ -197,9 +201,6 @@ include __DIR__ . '/../components/header.php';
                 <h3 class="text-2xl font-bold <?php echo $kpis['monthly_net_profit'] >= 0 ? 'text-secondary' : 'text-error'; ?> font-mono">
                     $<?php echo number_format((float)$kpis['monthly_net_profit'], 2); ?>
                 </h3>
-                <p class="text-[11px] text-on-surface-variant mt-1">
-                    Margin: <strong class="text-on-surface font-mono"><?php echo $kpis['gross_margin_pct']; ?>%</strong>
-                </p>
             </div>
         </div>
 
@@ -213,9 +214,6 @@ include __DIR__ . '/../components/header.php';
             </div>
             <div class="mt-3">
                 <h3 class="text-2xl font-bold text-amber-600 font-mono">$<?php echo number_format((float)$kpis['total_ar'], 2); ?></h3>
-                <p class="text-[11px] text-on-surface-variant mt-1">
-                    From <strong class="text-on-surface"><?php echo $kpis['ar_count']; ?></strong> patient debtor(s)
-                </p>
             </div>
         </div>
     </div>
@@ -289,7 +287,6 @@ include __DIR__ . '/../components/header.php';
                         <span class="material-symbols-outlined text-secondary text-[20px]">account_balance_wallet</span>
                         Hospital Working Capital
                     </h3>
-                    <p class="text-[11px] text-on-surface-variant">Asset &amp; Liability Snapshot</p>
                 </div>
                 <a href="balance_sheet.php" class="text-xs text-primary font-bold hover:underline flex items-center gap-0.5">
                     Balance Sheet &rarr;
@@ -298,27 +295,27 @@ include __DIR__ . '/../components/header.php';
 
             <div class="space-y-2 text-xs">
                 <div class="flex justify-between items-center p-2 rounded-lg bg-surface-container-lowest border border-outline-variant">
-                    <span class="text-on-surface-variant font-medium">Cash on Hand (Khasnadda)</span>
+                    <span class="text-on-surface-variant font-medium">Cash on Hand</span>
                     <span class="font-mono font-bold text-on-surface">$<?php echo number_format((float)($kpis['cash_on_hand'] ?? 0), 2); ?></span>
                 </div>
                 <div class="flex justify-between items-center p-2 rounded-lg bg-surface-container-lowest border border-outline-variant">
-                    <span class="text-on-surface-variant font-medium">Mobile Money (EVC / Zaad)</span>
+                    <span class="text-on-surface-variant font-medium">Mobile Money</span>
                     <span class="font-mono font-bold text-on-surface">$<?php echo number_format((float)($kpis['mobile_money'] ?? 0), 2); ?></span>
                 </div>
                 <div class="flex justify-between items-center p-2 rounded-lg bg-surface-container-lowest border border-outline-variant">
-                    <span class="text-on-surface-variant font-medium">Bank Account (Commercial)</span>
+                    <span class="text-on-surface-variant font-medium">Bank Account</span>
                     <span class="font-mono font-bold text-on-surface">$<?php echo number_format((float)($kpis['bank_account'] ?? 0), 2); ?></span>
                 </div>
                 <div class="flex justify-between items-center p-2 rounded-lg bg-surface-container-lowest border border-outline-variant">
-                    <span class="text-on-surface-variant font-medium">Pharmacy Inventory Value</span>
+                    <span class="text-on-surface-variant font-medium">Pharmacy Inventory</span>
                     <span class="font-mono font-bold text-on-surface">$<?php echo number_format((float)$kpis['inventory_asset'], 2); ?></span>
                 </div>
                 <div class="flex justify-between items-center p-2 rounded-lg bg-surface-container-lowest border border-outline-variant">
-                    <span class="text-on-surface-variant font-medium">Patient Receivables (AR)</span>
+                    <span class="text-on-surface-variant font-medium">Accounts Receivable</span>
                     <span class="font-mono font-bold text-amber-600">$<?php echo number_format((float)$kpis['total_ar'], 2); ?></span>
                 </div>
                 <div class="flex justify-between items-center p-2 rounded-lg bg-surface-container-lowest border border-outline-variant">
-                    <span class="text-on-surface-variant font-medium">Supplier Payables (AP)</span>
+                    <span class="text-on-surface-variant font-medium">Accounts Payable</span>
                     <span class="font-mono font-bold text-error">$<?php echo number_format((float)$kpis['total_ap'], 2); ?></span>
                 </div>
                 <div class="flex justify-between items-center p-2.5 rounded-lg bg-primary-fixed/20 border border-primary/30 font-bold">
@@ -335,9 +332,8 @@ include __DIR__ . '/../components/header.php';
             <div>
                 <h3 class="font-bold text-sm text-on-surface flex items-center gap-2">
                     <span class="material-symbols-outlined text-primary text-[20px]">history_edu</span>
-                    Recent Operating Expenses (Bishan)
+                    Recent Operating Expenses
                 </h3>
-                <p class="text-[11px] text-on-surface-variant">Real-time disbursements recorded in general ledger.</p>
             </div>
             <a href="expenses.php" class="text-xs text-primary font-bold hover:underline flex items-center gap-0.5">
                 View All Expenses &rarr;
@@ -382,6 +378,93 @@ include __DIR__ . '/../components/header.php';
                                 </td>
                                 <td class="py-2.5 px-3 text-right font-mono font-bold text-error">
                                     $<?php echo number_format((float)$exp['amount'], 2); ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Recent Inter-Account Money Transfers Card -->
+    <div class="rounded-2xl bg-surface border border-outline-variant p-4 sm:p-5 shadow-xs mb-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-outline-variant mb-4">
+            <div class="flex items-center gap-2">
+                <span class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-[20px]">swap_horiz</span>
+                </span>
+                <div>
+                    <h3 class="font-headline-sm text-sm sm:text-base font-bold text-on-surface">Recent Inter-Account Money Transfers</h3>
+                    <p class="text-[11px] text-on-surface-variant">Real-time ledger audit trail of funds moved between Cash, Mobile Money &amp; Bank Accounts (Contra Entries).</p>
+                </div>
+            </div>
+            <button type="button" onclick="openTransferModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow-xs cursor-pointer self-start sm:self-auto transition-colors">
+                <span class="material-symbols-outlined text-[16px]">add</span>
+                New Transfer
+            </button>
+        </div>
+
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                    <tr class="border-b border-outline-variant text-[11px] font-bold text-on-surface-variant uppercase tracking-wider bg-surface-container-low/50">
+                        <th class="py-2.5 px-3">Transfer #</th>
+                        <th class="py-2.5 px-3">Date</th>
+                        <th class="py-2.5 px-3">From Account</th>
+                        <th class="py-2.5 px-3 text-center">Flow</th>
+                        <th class="py-2.5 px-3">To Account</th>
+                        <th class="py-2.5 px-3">Reference / Notes</th>
+                        <th class="py-2.5 px-3">Transferred By</th>
+                        <th class="py-2.5 px-3 text-right">Amount ($)</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/60">
+                    <?php if (empty($recentTransfers)): ?>
+                        <tr>
+                            <td colspan="8" class="py-8 text-center text-on-surface-variant">
+                                <span class="material-symbols-outlined text-3xl text-outline mb-1">sync_alt</span>
+                                <p class="text-xs">No inter-account money transfers recorded yet.</p>
+                                <button type="button" onclick="openTransferModal()" class="mt-2 text-primary font-bold hover:underline text-xs cursor-pointer">
+                                    + Click here to record your first transfer
+                                </button>
+                            </td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($recentTransfers as $trf): ?>
+                            <tr class="hover:bg-surface-container-low transition-colors">
+                                <td class="py-2.5 px-3 font-mono font-bold text-primary">
+                                    <?php echo e($trf['transfer_number']); ?>
+                                </td>
+                                <td class="py-2.5 px-3 text-on-surface-variant whitespace-nowrap">
+                                    <?php echo date('M d, Y', strtotime($trf['transfer_date'])); ?>
+                                </td>
+                                <td class="py-2.5 px-3 font-semibold text-on-surface whitespace-nowrap">
+                                    <span class="inline-flex items-center gap-1 text-error">
+                                        <span class="material-symbols-outlined text-[14px]">arrow_upward</span>
+                                        [<?php echo e($trf['from_code']); ?>] <?php echo e($trf['from_name']); ?>
+                                    </span>
+                                </td>
+                                <td class="py-2.5 px-3 text-center text-on-surface-variant">
+                                    <span class="material-symbols-outlined text-emerald-600 text-[18px]">east</span>
+                                </td>
+                                <td class="py-2.5 px-3 font-semibold text-on-surface whitespace-nowrap">
+                                    <span class="inline-flex items-center gap-1 text-emerald-600">
+                                        <span class="material-symbols-outlined text-[14px]">arrow_downward</span>
+                                        [<?php echo e($trf['to_code']); ?>] <?php echo e($trf['to_name']); ?>
+                                    </span>
+                                </td>
+                                <td class="py-2.5 px-3 text-on-surface-variant max-w-xs truncate">
+                                    <?php if (!empty($trf['reference_number'])): ?>
+                                        <span class="font-mono font-bold text-[10px] bg-surface-container px-1.5 py-0.5 rounded text-on-surface">Ref: <?php echo e($trf['reference_number']); ?></span>
+                                    <?php endif; ?>
+                                    <?php echo e($trf['notes'] ?: ''); ?>
+                                </td>
+                                <td class="py-2.5 px-3 text-on-surface-variant whitespace-nowrap">
+                                    <?php echo e($trf['created_by_name'] ?? 'Accountant'); ?>
+                                </td>
+                                <td class="py-2.5 px-3 text-right font-mono font-bold text-emerald-600 text-sm whitespace-nowrap">
+                                    $<?php echo number_format((float)$trf['amount'], 2); ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -604,6 +687,102 @@ include __DIR__ . '/../components/header.php';
     </div>
 </div>
 
+<!-- MODAL: Transfer Money Between Accounts (Inter-Account Contra Entry) -->
+<div id="transfer-modal" class="fixed inset-0 z-50 bg-black/60 hidden backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-surface rounded-2xl border border-outline-variant max-w-lg w-full p-6 shadow-2xl custom-scrollbar max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center pb-3 border-b border-outline-variant mb-4">
+            <div class="flex items-center gap-2">
+                <span class="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-600 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-[24px]">swap_horiz</span>
+                </span>
+                <div>
+                    <h3 class="font-headline-sm text-base font-bold text-on-surface">Transfer Money Between Accounts</h3>
+                    <p class="text-xs text-on-surface-variant">Move funds between Mobile Money, Bank &amp; Cash (Contra Entry).</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeTransferModal()" class="text-on-surface-variant hover:text-on-surface p-1 rounded-lg cursor-pointer">
+                <span class="material-symbols-outlined text-[20px]">close</span>
+            </button>
+        </div>
+
+        <form method="POST" action="accounting_dashboard.php" class="space-y-4" onsubmit="return validateTransferForm(this);">
+            <?php echo csrfField(); ?>
+            <input type="hidden" name="action" value="record_transfer">
+            <input type="hidden" name="redirect_to" value="accounting_dashboard.php">
+
+            <div class="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-xs text-emerald-900 dark:text-emerald-300 flex items-start gap-2.5">
+                <span class="material-symbols-outlined text-emerald-600 text-[20px] shrink-0 mt-0.5">verified</span>
+                <div>
+                    <strong class="font-bold">Zero Transfer Fee (1-to-1 Balanced Contra Entry):</strong>
+                    <p class="mt-0.5">Direct ledger transfer. Credits source account and debits destination account without fee deductions.</p>
+                </div>
+            </div>
+
+            <!-- Source Account -->
+            <div>
+                <label class="block text-xs font-bold text-on-surface mb-1">Source Account (Laga Qaaday) *</label>
+                <select name="from_account_id" id="transfer_from_account" required class="w-full bg-surface-container-low border border-outline-variant rounded-xl p-2.5 text-xs font-semibold text-on-surface focus:border-primary outline-none">
+                    <option value="">-- Select Liquid Account (Cash / Mobile / Bank) --</option>
+                    <?php foreach ($liquidAccounts as $acc): ?>
+                        <?php $bal = AccountingOperation::getAccountBalanceByCode($acc['account_code']); ?>
+                        <option value="<?php echo (int)$acc['id']; ?>" data-balance="<?php echo $bal; ?>">
+                            [<?php echo e($acc['account_code']); ?>] <?php echo e($acc['account_name']); ?> &bull; Available: $<?php echo number_format($bal, 2); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <!-- Destination Account -->
+            <div>
+                <label class="block text-xs font-bold text-on-surface mb-1">Destination Account (Loo Diray) *</label>
+                <select name="to_account_id" id="transfer_to_account" required class="w-full bg-surface-container-low border border-outline-variant rounded-xl p-2.5 text-xs font-semibold text-on-surface focus:border-primary outline-none">
+                    <option value="">-- Select Destination Account (Cash / Mobile / Bank) --</option>
+                    <?php foreach ($liquidAccounts as $acc): ?>
+                        <?php $bal = AccountingOperation::getAccountBalanceByCode($acc['account_code']); ?>
+                        <option value="<?php echo (int)$acc['id']; ?>">
+                            [<?php echo e($acc['account_code']); ?>] <?php echo e($acc['account_name']); ?> &bull; Current: $<?php echo number_format($bal, 2); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-on-surface mb-1">Transfer Amount ($ USD) *</label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-2.5 font-bold text-on-surface-variant text-sm">$</span>
+                        <input name="amount" id="transfer_amount" type="number" step="0.01" min="0.01" required placeholder="500.00" class="w-full bg-surface-container-low border border-outline-variant rounded-xl pl-7 pr-3 py-2 text-sm font-mono font-bold text-on-surface focus:border-primary outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-on-surface mb-1">Transfer Date *</label>
+                    <input name="transfer_date" type="date" value="<?php echo date('Y-m-d'); ?>" required class="w-full bg-surface-container-low border border-outline-variant rounded-xl p-2 text-xs text-on-surface focus:border-primary outline-none">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-[11px] font-semibold text-on-surface mb-1">Reference / Trx ID (EVC Statement ID / Slip #)</label>
+                <input name="reference_number" type="text" placeholder="e.g. EVC-98124458 / Slip #44192" class="w-full bg-surface-container-low border border-outline-variant rounded-xl p-2 text-xs text-on-surface focus:border-primary outline-none">
+            </div>
+
+            <div>
+                <label class="block text-[11px] font-semibold text-on-surface mb-1">Purpose / Notes Description</label>
+                <textarea name="notes" rows="2" placeholder="e.g. Daily Mobile Money sales settlement into Main Bank Account" class="w-full bg-surface-container-low border border-outline-variant rounded-xl p-2 text-xs text-on-surface focus:border-primary outline-none resize-none"></textarea>
+            </div>
+
+            <div class="pt-3 border-t border-outline-variant flex justify-end gap-2">
+                <button type="button" onclick="closeTransferModal()" class="px-3.5 py-2 bg-surface-container text-on-surface rounded-xl text-xs font-semibold hover:bg-surface-container-high cursor-pointer">
+                    Cancel
+                </button>
+                <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5 transition-colors">
+                    <span class="material-symbols-outlined text-[16px]">sync_alt</span>
+                    Confirm &amp; Post Transfer
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     function openExpenseModal() {
         document.getElementById('record-expense-modal').classList.remove('hidden');
@@ -622,6 +801,33 @@ include __DIR__ . '/../components/header.php';
     }
     function closeCapitalModal() {
         document.getElementById('capital-modal').classList.add('hidden');
+    }
+    function openTransferModal() {
+        document.getElementById('transfer-modal').classList.remove('hidden');
+    }
+    function closeTransferModal() {
+        document.getElementById('transfer-modal').classList.add('hidden');
+    }
+    function validateTransferForm(form) {
+        const fromSelect = form.querySelector('#transfer_from_account');
+        const toSelect = form.querySelector('#transfer_to_account');
+        const amountInput = form.querySelector('#transfer_amount');
+
+        if (fromSelect.value === toSelect.value) {
+            alert('Source and destination accounts cannot be the same. Please select two different accounts.');
+            return false;
+        }
+
+        const selectedOpt = fromSelect.options[fromSelect.selectedIndex];
+        const availableBalance = parseFloat(selectedOpt.getAttribute('data-balance') || '0');
+        const transferAmount = parseFloat(amountInput.value || '0');
+
+        if (transferAmount > availableBalance) {
+            if (!confirm('Warning: The requested transfer amount ($' + transferAmount.toFixed(2) + ') exceeds the recorded balance ($' + availableBalance.toFixed(2) + ') of the source account. Do you still want to proceed?')) {
+                return false;
+            }
+        }
+        return true;
     }
 </script>
 

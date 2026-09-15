@@ -120,17 +120,6 @@ class BillingOperation
                 $fee,
             ]);
 
-            // Auto-post Option A accrual to General Ledger so services on credit never silently skip the ledger
-            if ($fee > 0.0) {
-                self::processInvoicePayment(
-                    $invoiceId,
-                    0.00,
-                    'credit',
-                    "Initial Consultation Fee Accrual [Token: " . ($tokenNumber ?: 'OPD') . "]",
-                    $userId ?? 1
-                );
-            }
-
             if ($ownsTransaction && $pdo->inTransaction()) {
                 $pdo->commit();
             }
@@ -229,17 +218,6 @@ class BillingOperation
                     $price,
                     $price,
                 ]);
-            }
-
-            // Auto-post Option A accrual to General Ledger so laboratory diagnostic tests on credit never silently skip the ledger
-            if ($totalAmount > 0.0) {
-                self::processInvoicePayment(
-                    $invoiceId,
-                    0.00,
-                    'credit',
-                    "Diagnostic Laboratory Tests Accrual [Token: {$tokenNumber}]",
-                    $userId ?? 1
-                );
             }
 
             if ($ownsTransaction && $pdo->inTransaction()) {
@@ -402,7 +380,7 @@ class BillingOperation
         $newPaidTotal     = round($currentPaid + $effectivePayment, 2);
         $newDueTotal      = max(0.00, round($netTotal - $newPaidTotal, 2));
 
-        $newStatus = ($newDueTotal <= 0.00) ? 'paid' : (($newPaidTotal > 0.00) ? 'partial' : 'pending');
+        $newStatus = ($newDueTotal <= 0.00) ? 'paid' : (($newPaidTotal > 0.00 || $paymentMethod === 'credit') ? 'partial' : 'pending');
 
         $ownsTransaction = false;
         if (!$pdo->inTransaction()) {
@@ -432,7 +410,7 @@ class BillingOperation
             ]);
 
             // 2. If Consultation Invoice, update queue billing status when paid/settled
-            if (!empty($invoice['queue_id']) && ($newStatus === 'paid' || $effectivePayment > 0.0)) {
+            if (!empty($invoice['queue_id']) && ($newStatus === 'paid' || $newStatus === 'partial' || $effectivePayment > 0.0 || $paymentMethod === 'credit')) {
                 $pdo->prepare("
                     UPDATE patient_queues 
                     SET billing_status = 'paid' 
@@ -1231,3 +1209,4 @@ class BillingOperation
         return $stmt->fetch() ?: null;
     }
 }
+

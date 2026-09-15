@@ -253,7 +253,7 @@ class PatientController
             $invoiceId = (int)($result['invoice_id'] ?? 0);
 
             setFlashMessage('success', sprintf(
-                'Token "%s" generated for %s (MRN: %s). Consultation bill generated — please collect payment at Cashier desk before issuing token slip.',
+                'Token "%s" generated for %s (MRN: %s). Fadlan bukaanka u gudbi Khasnadda (Billing) si uu u bixiyo khidmadda ama qeyb looga qaado inta kalena deyn loogu qoro.',
                 $token,
                 $pName,
                 $mrn
@@ -647,6 +647,29 @@ class PatientController
                 }
             }
 
+            // Billing clearance gate for consultation entry
+            if ($status === 'in_consultation') {
+                $pdo = getDBConnection();
+                $stmtClear = $pdo->prepare("
+                    SELECT q.billing_status,
+                           COALESCE(inv.payment_status, 'pending') as inv_status,
+                           COALESCE(inv.due_amount, 10.00) as inv_due,
+                           COALESCE(u.consultation_fee, 10.00) as doc_fee
+                    FROM patient_queues q
+                    LEFT JOIN invoices inv ON inv.queue_id = q.id AND inv.bill_type = 'consultation'
+                    LEFT JOIN users u ON q.doctor_id = u.id
+                    WHERE q.id = ?
+                ");
+                $stmtClear->execute([$queueId]);
+                $clearRow = $stmtClear->fetch();
+                if ($clearRow) {
+                    $isPaidOrFree = ($clearRow['billing_status'] === 'paid' || $clearRow['inv_status'] === 'paid' || $clearRow['inv_status'] === 'partial' || (float)$clearRow['inv_due'] <= 0.001 || (float)$clearRow['doc_fee'] <= 0.001 || $clearRow['billing_status'] === 'exempt');
+                    if (!$isPaidOrFree) {
+                        return ['error' => 'Bukaankan lacagtiisa consultation-ka weli lama bixin. Fadlan bukaanka u dir Cashier-ka ka hor inta aan la bilaabin consultation-ka.'];
+                    }
+                }
+            }
+
             PatientOperation::updateQueueStatus($queueId, $status);
 
             setFlashMessage('success', sprintf('Patient queue status updated to "%s".', ucfirst(str_replace('_', ' ', $status))));
@@ -694,6 +717,27 @@ class PatientController
                 $assignedDoc = $stmtCheck->fetchColumn();
                 if ($assignedDoc !== false && $assignedDoc !== null && (int)$assignedDoc !== (int)$currentUser['id']) {
                     return ['error' => 'This patient is assigned to another clinician.'];
+                }
+            }
+
+            // Billing clearance gate for consultation entry
+            $pdo = getDBConnection();
+            $stmtClear = $pdo->prepare("
+                SELECT q.billing_status,
+                       COALESCE(inv.payment_status, 'pending') as inv_status,
+                       COALESCE(inv.due_amount, 10.00) as inv_due,
+                       COALESCE(u.consultation_fee, 10.00) as doc_fee
+                FROM patient_queues q
+                LEFT JOIN invoices inv ON inv.queue_id = q.id AND inv.bill_type = 'consultation'
+                LEFT JOIN users u ON q.doctor_id = u.id
+                WHERE q.id = ?
+            ");
+            $stmtClear->execute([$queueId]);
+            $clearRow = $stmtClear->fetch();
+            if ($clearRow) {
+                $isPaidOrFree = ($clearRow['billing_status'] === 'paid' || $clearRow['inv_status'] === 'paid' || $clearRow['inv_status'] === 'partial' || (float)$clearRow['inv_due'] <= 0.001 || (float)$clearRow['doc_fee'] <= 0.001 || $clearRow['billing_status'] === 'exempt');
+                if (!$isPaidOrFree) {
+                    return ['error' => 'Bukaankan lacagtiisa consultation-ka weli lama bixin. Fadlan bukaanka u dir Cashier-ka ka hor inta aan la bilaabin consultation-ka.'];
                 }
             }
 

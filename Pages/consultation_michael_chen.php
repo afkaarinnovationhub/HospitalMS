@@ -73,22 +73,36 @@ if ($patientId > 0) {
     $patient = PatientOperation::getPatientById($patientId);
 }
 
-// If specific queue_id is passed, verify doctor assignment security
-if ($currentDoctorId && $queueId) {
+// If specific queue_id is passed, verify doctor assignment security and billing clearance
+if ($queueId) {
     $pdo = getDBConnection();
-    $stmtQDoc = $pdo->prepare("SELECT doctor_id FROM patient_queues WHERE id = ?");
-    $stmtQDoc->execute([$queueId]);
-    $assignedDoc = $stmtQDoc->fetchColumn();
-    if ($assignedDoc !== false && $assignedDoc !== null && (int)$assignedDoc !== $currentDoctorId) {
-        setFlashMessage('error', 'Access denied. This patient encounter is assigned to another doctor.');
-        safeRedirect('doctor_dashboard.php');
+    $stmtQBill = $pdo->prepare("
+        SELECT pq.*, inv.payment_status as invoice_status 
+        FROM patient_queues pq 
+        LEFT JOIN invoices inv ON inv.queue_id = pq.id AND inv.bill_type = 'consultation'
+        WHERE pq.id = ?
+    ");
+    $stmtQBill->execute([$queueId]);
+    $queueRow = $stmtQBill->fetch();
+    if ($queueRow) {
+        if ($currentDoctorId && $queueRow['doctor_id'] !== null && (int)$queueRow['doctor_id'] !== $currentDoctorId) {
+            setFlashMessage('error', 'Access denied. This patient encounter is assigned to another doctor.');
+            safeRedirect('doctor_dashboard.php');
+        }
+
+        $isBillingPaid = ($queueRow['billing_status'] === 'paid' || ($queueRow['invoice_status'] ?? '') === 'paid' || ($queueRow['invoice_status'] ?? '') === 'partial' || $queueRow['billing_status'] === 'exempt' || (float)($queueRow['current_doctor_fee'] ?? 0) <= 0.0);
+        
+        if (!$isBillingPaid) {
+            setFlashMessage('error', 'Bukaankan lacagtiisa consultation-ka weli lama bixin. Fadlan bukaanka u dir Cashier-ka ka hor inta aan la bilaabin consultation-ka.');
+            safeRedirect('doctor_dashboard.php');
+        }
     }
 }
 
 // If no active patient is selected, render clean "Consultation Station / Waiting Queue"
 if (!$patient) {
-    $pageTitle = 'Consultation Station - MedCore Systems';
-    $headerTitle = 'MedCore Management - Clinical Consultation Station';
+    $pageTitle = 'Consultation Station - ' . HOSPITAL_NAME;
+    $headerTitle = HOSPITAL_NAME . ' - Clinical Consultation Station';
     $activePage = 'consultations';
 
     $waitingQueue = PatientOperation::getQueue([
@@ -372,8 +386,8 @@ $hasBlood = !empty($patient['blood_group']);
 $hasAllergyInfo = !empty($patient['allergies']);
 $isAllergic = $hasAllergyInfo && strtolower($patient['allergies']) !== 'none known' && strtolower($patient['allergies']) !== 'none';
 
-$pageTitle = 'Consultation Workspace - ' . e($patient['full_name']) . ' - MedCore Systems';
-$headerTitle = 'MedCore Management - Consultation';
+$pageTitle = 'Consultation Workspace - ' . e($patient['full_name']) . ' - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Consultation';
 $activePage = 'consultations';
 
 include __DIR__ . '/../components/header.php';

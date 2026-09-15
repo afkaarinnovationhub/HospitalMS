@@ -257,4 +257,67 @@ class AccountingController
             return ['error' => $e->getMessage()];
         }
     }
+
+    /**
+     * Handles recording a direct money transfer between hospital accounts.
+     */
+    public static function handleRecordTransfer(array $post): ?array
+    {
+        initSecureSession();
+        requireLogin();
+
+        if (!verifyCsrfToken($post['csrf_token'] ?? null)) {
+            return ['error' => 'Security token invalid or expired. Please try again.'];
+        }
+
+        $currentUser = getCurrentUser();
+        $userId = (int)($currentUser['id'] ?? 1);
+
+        try {
+            $fromId = (int)($post['from_account_id'] ?? 0);
+            $toId   = (int)($post['to_account_id'] ?? 0);
+            $amount = (float)($post['amount'] ?? 0);
+            $transferDate = !empty($post['transfer_date']) ? $post['transfer_date'] : date('Y-m-d');
+            $refNumber = sanitizeString($post['reference_number'] ?? '');
+            $notes = sanitizeString($post['notes'] ?? '');
+
+            if ($fromId <= 0 || $toId <= 0) {
+                return ['error' => 'Please select both source and destination accounts.'];
+            }
+
+            if ($fromId === $toId) {
+                return ['error' => 'Source and destination accounts cannot be the same account.'];
+            }
+
+            if ($amount <= 0) {
+                return ['error' => 'Please enter a valid transfer amount greater than zero.'];
+            }
+
+            $transferId = AccountingOperation::recordAccountTransfer([
+                'from_account_id'  => $fromId,
+                'to_account_id'    => $toId,
+                'amount'           => $amount,
+                'transfer_date'    => $transferDate,
+                'reference_number' => $refNumber,
+                'notes'            => $notes,
+            ], $userId);
+
+            $fromAcc = AccountingOperation::getAccountById($fromId);
+            $toAcc   = AccountingOperation::getAccountById($toId);
+
+            $fromName = $fromAcc ? $fromAcc['account_name'] : 'Source Account';
+            $toName   = $toAcc ? $toAcc['account_name'] : 'Destination Account';
+
+            setFlashMessage('success', "Transfer of \$" . number_format($amount, 2) . " from [{$fromName}] to [{$toName}] completed successfully.");
+
+            $redirect = !empty($post['redirect_to']) ? sanitizeString($post['redirect_to']) : 'accounting_dashboard.php';
+            safeRedirect($redirect);
+            return null;
+
+        } catch (Exception $e) {
+            error_log('[HPMS TRANSFER CONTROLLER ERROR] ' . $e->getMessage());
+            return ['error' => $e->getMessage()];
+        }
+    }
 }
+

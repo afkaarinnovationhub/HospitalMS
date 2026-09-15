@@ -55,8 +55,8 @@ if (!in_array($statusFilter, ['all', 'in_debt', 'settled'], true)) {
 $kpis = InventoryOperation::getSupplierSummaryKPIs();
 $suppliers = InventoryOperation::getSuppliersWithFinancials($searchQuery ?: null, $statusFilter);
 
-$pageTitle = 'Suppliers & Vendors Directory - MedCore Systems';
-$headerTitle = 'MedCore Management - Suppliers Hub';
+$pageTitle = 'Suppliers & Vendors Directory - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Suppliers Hub';
 $activePage = 'suppliers';
 
 include __DIR__ . '/../components/header.php';
@@ -90,16 +90,13 @@ include __DIR__ . '/../components/header.php';
         <div>
             <h2 class="font-headline-lg text-xl sm:text-headline-lg font-bold text-on-surface flex items-center gap-2">
                 <span class="material-symbols-outlined text-primary text-[28px]">local_shipping</span>
-                Suppliers &amp; Vendor Management
+                Suppliers Directory
             </h2>
-            <p class="font-body-md text-xs sm:text-body-md text-on-surface-variant mt-1">
-                Pharmaceutical vendors, wholesale distributors, procurement ledgers, and supplier debt records.
-            </p>
         </div>
         <div class="flex flex-wrap items-center gap-2.5">
             <a href="inventory_management.php" class="px-3.5 py-2 bg-surface-container border border-outline-variant hover:bg-surface-container-high text-on-surface rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs">
                 <span class="material-symbols-outlined text-[18px]">inventory_2</span>
-                Restock Inventory
+                Restock
             </a>
             <a href="accounts_payable.php" class="px-3.5 py-2 bg-surface-container border border-outline-variant hover:bg-surface-container-high text-on-surface rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs">
                 <span class="material-symbols-outlined text-[18px]">account_balance</span>
@@ -107,7 +104,7 @@ include __DIR__ . '/../components/header.php';
             </a>
             <button type="button" onclick="openAddSupplierModal()" class="px-4 py-2 bg-primary hover:bg-primary-container text-on-primary rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer">
                 <span class="material-symbols-outlined text-[18px]">domain_add</span>
-                + Register New Supplier
+                + New Supplier
             </button>
         </div>
     </div>
@@ -118,7 +115,6 @@ include __DIR__ . '/../components/header.php';
             <div>
                 <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Total Suppliers</p>
                 <h3 class="text-2xl sm:text-3xl font-extrabold text-on-surface font-mono mt-1"><?php echo number_format($kpis['total_suppliers']); ?></h3>
-                <p class="text-[11px] text-on-surface-variant mt-0.5">Master directory records</p>
             </div>
             <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
                 <span class="material-symbols-outlined text-[24px]">domain</span>
@@ -129,7 +125,6 @@ include __DIR__ . '/../components/header.php';
             <div>
                 <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Active Vendors</p>
                 <h3 class="text-2xl sm:text-3xl font-extrabold text-secondary font-mono mt-1"><?php echo number_format($kpis['active_vendors']); ?></h3>
-                <p class="text-[11px] text-secondary mt-0.5 font-semibold">With purchase orders</p>
             </div>
             <div class="w-12 h-12 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
                 <span class="material-symbols-outlined text-[24px]">verified</span>
@@ -140,7 +135,6 @@ include __DIR__ . '/../components/header.php';
             <div>
                 <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Restock PO Orders</p>
                 <h3 class="text-2xl sm:text-3xl font-extrabold text-on-surface font-mono mt-1"><?php echo number_format($kpis['total_pos']); ?></h3>
-                <p class="text-[11px] text-on-surface-variant mt-0.5">Total procurement batches</p>
             </div>
             <div class="w-12 h-12 rounded-xl bg-surface-container-high text-on-surface flex items-center justify-center shrink-0">
                 <span class="material-symbols-outlined text-[24px]">receipt_long</span>
@@ -151,7 +145,6 @@ include __DIR__ . '/../components/header.php';
             <div>
                 <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Outstanding AP Debt</p>
                 <h3 class="text-2xl sm:text-3xl font-extrabold text-error font-mono mt-1">$<?php echo number_format($kpis['total_payable_debt'], 2); ?></h3>
-                <p class="text-[11px] text-error mt-0.5 font-semibold">Unsettled vendor balance</p>
             </div>
             <div class="w-12 h-12 rounded-xl bg-error-container/40 text-error flex items-center justify-center shrink-0">
                 <span class="material-symbols-outlined text-[24px]">account_balance_wallet</span>
@@ -193,9 +186,8 @@ include __DIR__ . '/../components/header.php';
             <div>
                 <h3 class="font-headline-sm text-sm font-bold text-on-surface flex items-center gap-2">
                     <span class="material-symbols-outlined text-primary text-[20px]">store</span>
-                    Registered Suppliers &amp; Procurement Ledgers
+                    Registered Suppliers
                 </h3>
-                <p class="text-[11px] text-on-surface-variant">Manage contact information, view financial accounts, edit details, or remove vendors.</p>
             </div>
             <span class="text-xs font-bold text-on-surface-variant bg-surface-container px-2.5 py-1 rounded-full">
                 Showing <?php echo count($suppliers); ?> vendor(s)

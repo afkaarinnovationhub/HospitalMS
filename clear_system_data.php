@@ -34,7 +34,7 @@ require_once __DIR__ . '/OPERATIONS/LaboratoryOperation.php';
 $pdo = getDBConnection();
 
 echo "\n======================================================================\n";
-echo "       MEDCORE HOSPITAL SYSTEMS - COMPLETE SYSTEM DATA PURGE\n";
+echo "       " . strtoupper(HOSPITAL_NAME) . " - SYSTEM DATA PURGE\n";
 echo "======================================================================\n\n";
 
 $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
@@ -47,6 +47,7 @@ $tablesToClear = [
     'refund_vouchers',
     'journal_items',
     'journal_entries',
+    'account_transfers',
     'hospital_expenses',
     
     // Reception, Triage & Consultations

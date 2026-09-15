@@ -132,6 +132,18 @@ try {
                                     <?php echo e($q['priority']); ?>
                                 </span>
                             <?php endif; ?>
+                            <?php 
+                                $isBillingPaid = ($q['billing_status'] === 'paid' || in_array(($q['invoice_status'] ?? ''), ['paid', 'partial']) || (float)($q['current_doctor_fee'] ?? 10) <= 0.0);
+                            ?>
+                            <?php if ($isBillingPaid): ?>
+                                <span class="text-[10px] uppercase font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded-full" title="Consultation fee verified & paid">
+                                    ✓ Paid
+                                </span>
+                            <?php else: ?>
+                                <span class="text-[10px] uppercase font-bold text-amber-800 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded-full flex items-center gap-0.5" title="Consultation fee unpaid at cashier">
+                                    <span class="material-symbols-outlined text-[12px]">lock</span> Unpaid
+                                </span>
+                            <?php endif; ?>
                             <?php if (!empty($q['invoice_due']) && (float)$q['invoice_due'] > 0 && ($q['invoice_status'] ?? '') === 'partial'): ?>
                                 <span class="text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded-full" title="Consultation fee balance due: $<?php echo number_format((float)$q['invoice_due'], 2); ?>">
                                     Due: $<?php echo number_format((float)$q['invoice_due'], 2); ?>
@@ -195,15 +207,22 @@ try {
                                     View Order
                                 </a>
                             <?php else: ?>
-                                <form method="POST" action="doctor_dashboard.php" class="inline">
-                                    <?php echo csrfField(); ?>
-                                    <input type="hidden" name="action" value="call_patient">
-                                    <input type="hidden" name="queue_id" value="<?php echo (int)$q['id']; ?>">
-                                    <button type="submit" class="inline-flex items-center gap-1 px-3.5 py-1.5 bg-primary hover:bg-primary-container text-on-primary font-bold rounded-lg text-xs shadow-xs transition-colors cursor-pointer">
-                                        <span class="material-symbols-outlined text-[15px]">play_arrow</span>
-                                        Call In
+                                <?php if ($isBillingPaid): ?>
+                                    <form method="POST" action="doctor_dashboard.php" class="inline">
+                                        <?php echo csrfField(); ?>
+                                        <input type="hidden" name="action" value="call_patient">
+                                        <input type="hidden" name="queue_id" value="<?php echo (int)$q['id']; ?>">
+                                        <button type="submit" class="inline-flex items-center gap-1 px-3.5 py-1.5 bg-primary hover:bg-primary-container text-on-primary font-bold rounded-lg text-xs shadow-xs transition-colors cursor-pointer">
+                                            <span class="material-symbols-outlined text-[15px]">play_arrow</span>
+                                            Call In
+                                        </button>
+                                    </form>
+                                <?php else: ?>
+                                    <button type="button" disabled class="inline-flex items-center gap-1 px-3 py-1.5 bg-surface-container text-on-surface-variant/50 border border-outline-variant font-bold rounded-lg text-xs cursor-not-allowed" title="Bukaankan lacagtiisa consultation-ka weli lama bixin. Fadlan bukaanka u dir Cashier-ka (Caddaan ama Deyn).">
+                                        <span class="material-symbols-outlined text-[15px]">lock</span>
+                                        Locked
                                     </button>
-                                </form>
+                                <?php endif; ?>
                             <?php endif; ?>
                         </div>
                     </td>
@@ -672,11 +691,7 @@ try {
                 </tr>
             <?php else:
                 foreach ($worklist as $order):
-                    $prioClass = 'bg-surface-container text-on-surface';
-                    if ($order['priority'] === 'stat') $prioClass = 'bg-error text-on-error font-bold';
-                    elseif ($order['priority'] === 'urgent') $prioClass = 'bg-error-container text-on-error-container font-bold';
-
-                    $isPaid = ($order['payment_status'] === 'paid');
+                    $isPaid = ($order['payment_status'] === 'paid' || $order['payment_status'] === 'partial' || (float)($order['billing_due'] ?? 0) <= 0.001);
                     $payBadge = $isPaid 
                         ? 'bg-secondary-fixed/40 text-on-secondary-fixed-variant border-secondary/30' 
                         : 'bg-amber-500/10 text-amber-700 border-amber-500/30';
@@ -690,23 +705,18 @@ try {
             ?>
                 <tr class="hover:bg-surface-container-low transition-colors">
                     <td class="py-3 px-4">
-                        <div class="flex items-center gap-1.5">
-                            <span class="font-mono font-bold text-primary"><?php echo e($order['order_number']); ?></span>
-                            <span class="text-[9px] uppercase px-1.5 py-0.2 rounded font-bold <?php echo $prioClass; ?>">
-                                <?php echo e($order['priority']); ?>
-                            </span>
-                        </div>
+                        <span class="font-mono font-bold text-primary"><?php echo e($order['order_number']); ?></span>
                         <p class="text-[10px] text-on-surface-variant mt-0.5"><?php echo date('M d, g:i A', strtotime($order['created_at'])); ?></p>
                     </td>
                     <td class="py-3 px-4">
                         <a href="patient_profile_michael_chen.php?id=<?php echo (int)$order['patient_id']; ?>" class="font-bold text-on-surface hover:text-primary hover:underline">
                             <?php echo e($order['patient_name']); ?>
                         </a>
-                        <p class="text-[11px] text-on-surface-variant font-mono"><?php echo e($order['mrn']); ?> • <?php echo e($order['gender']); ?></p>
+                        <p class="text-[11px] text-on-surface-variant capitalize"><?php echo e($order['gender']); ?></p>
                     </td>
                     <td class="py-3 px-4">
                         <p class="font-bold text-on-surface"><?php echo e($order['test_name']); ?></p>
-                        <p class="text-[11px] text-primary"><?php echo e($order['test_category'] ?: 'General Laboratory'); ?> • <span class="font-mono font-semibold text-secondary">$<?php echo number_format((float)$order['test_price'], 2); ?></span></p>
+                        <p class="text-[11px] font-mono font-semibold text-secondary">$<?php echo number_format((float)$order['test_price'], 2); ?></p>
                         <?php if (!empty($order['clinical_notes'])): ?>
                             <p class="text-[11px] text-on-surface-variant italic mt-0.5 bg-surface-container-lowest p-1 rounded border border-outline-variant/60">
                                 "<?php echo e($order['clinical_notes']); ?>"
@@ -920,13 +930,14 @@ try {
                    class="block p-3 rounded-xl border transition-all cursor-pointer bg-surface-container-lowest border-outline-variant hover:bg-surface-container-low">
                     <div class="flex items-start justify-between gap-2">
                         <div>
-                            <div class="flex items-center gap-1.5">
+                            <div class="flex items-center gap-1.5 flex-wrap">
                                 <span class="font-mono font-bold text-xs text-primary"><?php echo e($inv['invoice_number']); ?></span>
                                 <?php if (!empty($inv['token_number'])): ?>
                                     <span class="bg-amber-500/20 text-amber-800 dark:text-amber-300 font-mono font-bold text-[10px] px-1.5 py-0.5 rounded">
                                         <?php echo e($inv['token_number']); ?>
                                     </span>
                                 <?php endif; ?>
+
                             </div>
                             <h4 class="font-bold text-xs text-on-surface mt-0.5"><?php echo e($inv['customer_name']); ?></h4>
                             <p class="text-[10px] text-on-surface-variant"><?php echo e($inv['mrn'] ?: 'Outpatient'); ?> • <?php echo date('g:i A', strtotime($inv['created_at'])); ?></p>
@@ -951,6 +962,8 @@ try {
             ]);
             if (!defined('HPMS_TESTING')) { exit; }
             return;
+
+
 
         default:
             echo json_encode(['status' => 'error', 'message' => 'Unknown module']);

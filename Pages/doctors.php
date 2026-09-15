@@ -55,8 +55,8 @@ $activeDocs = count(array_filter($doctors, fn($d) => $d['account_status'] === 'a
 $totalWaiting = array_sum(array_column($doctors, 'waiting_count'));
 $totalCompleted = array_sum(array_column($doctors, 'completed_today_count'));
 
-$pageTitle = 'Doctors & Clinical Staff - MedCore Systems';
-$headerTitle = 'MedCore Management - Doctors';
+$pageTitle = 'Doctors & Clinical Staff - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Doctors';
 $activePage = 'doctors';
 
 include __DIR__ . '/../components/header.php';
@@ -68,13 +68,12 @@ include __DIR__ . '/../components/header.php';
         <!-- Page Header & Action Bar -->
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
             <div>
-                <h2 class="font-headline-lg text-xl sm:text-headline-lg font-bold text-on-surface">Doctors &amp; Clinical Staff Directory</h2>
-                <p class="font-body-md text-xs sm:text-body-md text-on-surface-variant mt-xs">Manage physician accounts, assign specialties, and monitor consultation workloads.</p>
+                <h2 class="font-headline-lg text-xl sm:text-headline-lg font-bold text-on-surface">Doctors Directory</h2>
             </div>
             <!-- Add New Doctor Trigger Button -->
             <button type="button" onclick="openDoctorModal()" class="w-full sm:w-auto flex items-center justify-center gap-xs px-md py-2.5 bg-primary text-on-primary font-label-md text-xs sm:text-label-md rounded-lg hover:bg-primary-container hover:text-on-primary-container transition-colors shadow-sm font-semibold cursor-pointer">
                 <span class="material-symbols-outlined text-[20px]">person_add</span>
-                Register New Doctor
+                + Register Doctor
             </button>
         </div>
 

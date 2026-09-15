@@ -54,7 +54,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
-    <title>Login - MedCore Systems</title>
+    <title>Login - <?php echo htmlspecialchars(HOSPITAL_NAME); ?></title>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
@@ -107,8 +107,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary text-on-primary shadow-lg shadow-primary/20 mb-3">
                 <span class="material-symbols-outlined text-[36px] fill">local_hospital</span>
             </div>
-            <h1 class="text-2xl sm:text-3xl font-bold text-primary tracking-tight">MedCore Systems</h1>
-            <p class="text-xs sm:text-sm text-on-surface-variant mt-1">Clinical Operations &amp; Hospital Management</p>
+            <h1 class="text-2xl sm:text-3xl font-bold text-primary tracking-tight"><?php echo htmlspecialchars(HOSPITAL_NAME); ?></h1>
+            <p class="text-xs sm:text-sm text-on-surface-variant mt-1"><?php echo htmlspecialchars(HOSPITAL_TAGLINE); ?></p>
         </div>
 
         <!-- Clean Login Card -->
@@ -146,7 +146,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 <div>
                     <label class="block text-xs font-semibold text-on-surface-variant mb-1.5" for="login-username">Email or Username</label>
                     <div class="relative">
-                        <input id="login-username" name="username_or_email" class="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 pl-10 pr-3 text-xs sm:text-sm text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors" placeholder="e.g. admin or admin@medcore.org" required type="text" value="<?php echo e($_POST['username_or_email'] ?? ''); ?>" autocomplete="username">
+                        <input id="login-username" name="username_or_email" class="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 pl-10 pr-3 text-xs sm:text-sm text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors" placeholder="e.g. admin or staff username" required type="text" value="<?php echo e($_POST['username_or_email'] ?? ''); ?>" autocomplete="username">
                         <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px] pointer-events-none">person</span>
                     </div>
                 </div>

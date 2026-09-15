@@ -76,8 +76,8 @@ if (!empty($genderFilter)) {
 
 $nextMRN = PatientOperation::generateUniqueMRN();
 
-$pageTitle = 'Patients Directory & Registration - MedCore Systems';
-$headerTitle = 'MedCore Management - Patients';
+$pageTitle = 'Patients Directory & Registration - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Patients';
 $activePage = 'patients';
 
 include __DIR__ . '/../components/header.php';
@@ -90,19 +90,12 @@ include __DIR__ . '/../components/header.php';
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
             <div>
                 <h2 class="font-headline-lg text-xl sm:text-headline-lg font-bold text-on-surface">Patients Directory</h2>
-                <p class="font-body-md text-xs sm:text-body-md text-on-surface-variant mt-xs">
-                    <?php if ($isDoctorRole): ?>
-                        Viewing clinical patient files and medical encounters assigned to your care.
-                    <?php else: ?>
-                        Register new patients, record clinical triage vitals, and manage hospital medical files.
-                    <?php endif; ?>
-                </p>
             </div>
             <!-- Quick Link to Reception Intake -->
             <?php if (!$isDoctorRole): ?>
                 <a href="reception.php" class="w-full sm:w-auto flex items-center justify-center gap-xs px-md py-2.5 bg-primary text-on-primary font-label-md text-xs sm:text-label-md rounded-lg hover:bg-primary-container hover:text-on-primary-container transition-colors shadow-sm font-semibold cursor-pointer">
                     <span class="material-symbols-outlined text-[20px]">desk</span>
-                    New Intake at Reception
+                    + New Intake
                 </a>
             <?php endif; ?>
         </div>

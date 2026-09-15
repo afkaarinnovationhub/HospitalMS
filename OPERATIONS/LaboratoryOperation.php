@@ -74,6 +74,117 @@ class LaboratoryOperation
     }
 
     /**
+     * Retrieves all registered laboratory categories along with the count of linked tests.
+     *
+     * @return array
+     */
+    public static function getLabCategoriesWithCount(): array
+    {
+        self::seedLabCategoriesIfEmpty();
+        $pdo = getDBConnection();
+        $sql = "
+            SELECT c.*, COUNT(t.id) as test_count
+            FROM lab_categories c
+            LEFT JOIN lab_tests_catalog t ON t.category = c.name
+            GROUP BY c.id, c.name, c.description, c.created_at
+            ORDER BY c.name ASC
+        ";
+        return $pdo->query($sql)->fetchAll();
+    }
+
+    /**
+     * Retrieves a single lab category by ID.
+     *
+     * @param int $id
+     * @return array|null
+     */
+    public static function getLabCategoryById(int $id): ?array
+    {
+        self::seedLabCategoriesIfEmpty();
+        $pdo = getDBConnection();
+        $stmt = $pdo->prepare("SELECT * FROM lab_categories WHERE id = ? LIMIT 1");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
+    /**
+     * Updates an existing diagnostic laboratory category.
+     *
+     * @param int $id
+     * @param string $name
+     * @param string|null $description
+     * @return bool
+     */
+    public static function updateLabCategory(int $id, string $name, ?string $description = null): bool
+    {
+        $pdo = getDBConnection();
+        self::seedLabCategoriesIfEmpty();
+
+        $trimmedName = trim($name);
+        if (empty($trimmedName)) {
+            throw new InvalidArgumentException('Category name cannot be empty.');
+        }
+
+        $oldCat = self::getLabCategoryById($id);
+        if (!$oldCat) {
+            throw new RuntimeException('Laboratory category not found.');
+        }
+        $oldName = $oldCat['name'];
+
+        $stmtCheck = $pdo->prepare("SELECT id FROM lab_categories WHERE LOWER(name) = LOWER(?) AND id != ?");
+        $stmtCheck->execute([$trimmedName, $id]);
+        if ($stmtCheck->fetchColumn()) {
+            throw new RuntimeException('A laboratory category with this name already exists.');
+        }
+
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare("UPDATE lab_categories SET name = ?, description = ? WHERE id = ?");
+            $stmt->execute([$trimmedName, !empty($description) ? trim($description) : null, $id]);
+
+            if ($oldName !== $trimmedName) {
+                $stmtTests = $pdo->prepare("UPDATE lab_tests_catalog SET category = ? WHERE category = ?");
+                $stmtTests->execute([$trimmedName, $oldName]);
+            }
+
+            $pdo->commit();
+            return true;
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Deletes a laboratory category if no diagnostic tests are linked.
+     *
+     * @param int $id
+     * @return bool
+     */
+    public static function deleteLabCategory(int $id): bool
+    {
+        $pdo = getDBConnection();
+        self::seedLabCategoriesIfEmpty();
+
+        $cat = self::getLabCategoryById($id);
+        if (!$cat) {
+            return false;
+        }
+
+        $stmtCount = $pdo->prepare("SELECT COUNT(*) FROM lab_tests_catalog WHERE category = ?");
+        $stmtCount->execute([$cat['name']]);
+        $count = (int)$stmtCount->fetchColumn();
+        if ($count > 0) {
+            throw new RuntimeException("Cannot delete category '{$cat['name']}' because it has {$count} diagnostic test(s) linked to it. Please reassign or delete the tests first.");
+        }
+
+        $stmt = $pdo->prepare("DELETE FROM lab_categories WHERE id = ?");
+        return $stmt->execute([$id]);
+    }
+
+
+    /**
      * Ensures laboratory test catalog table exists.
      * Strictly production mode: Does NOT seed any mock tests.
      */
@@ -592,7 +703,13 @@ class LaboratoryOperation
                     JOIN invoices inv ON ii.invoice_id = inv.id 
                     WHERE ii.item_name = l.test_name AND inv.patient_id = l.patient_id 
                     ORDER BY inv.id DESC LIMIT 1
-                ) as payment_status
+                ) as payment_status,
+                (
+                    SELECT q.billing_status
+                    FROM patient_queues q
+                    WHERE q.id = l.queue_id
+                    LIMIT 1
+                ) as queue_billing_status
             FROM lab_orders l
             JOIN patients p ON l.patient_id = p.id
             LEFT JOIN users uDoc ON l.doctor_id = uDoc.id
@@ -632,10 +749,12 @@ class LaboratoryOperation
     {
         $pdo = getDBConnection();
         $stmt = $pdo->prepare("
-            SELECT inv.payment_status, inv.due_amount, l.test_price
+            SELECT inv.payment_status, inv.due_amount, l.test_price,
+                   q.billing_status as queue_billing_status
             FROM lab_orders l
             LEFT JOIN invoice_items ii ON ii.item_reference_id = l.id AND ii.item_type IN ('lab_test', 'lab')
             LEFT JOIN invoices inv ON ii.invoice_id = inv.id
+            LEFT JOIN patient_queues q ON l.queue_id = q.id
             WHERE l.id = ?
             ORDER BY inv.id DESC
             LIMIT 1
@@ -645,10 +764,12 @@ class LaboratoryOperation
         if (!$row || empty($row['payment_status'])) {
             // Fallback check by test_name and patient_id
             $stmtFallback = $pdo->prepare("
-                SELECT inv.payment_status, inv.due_amount
+                SELECT inv.payment_status, inv.due_amount,
+                       q.billing_status as queue_billing_status
                 FROM lab_orders l
                 JOIN invoice_items ii ON ii.item_name = l.test_name
                 JOIN invoices inv ON ii.invoice_id = inv.id AND inv.patient_id = l.patient_id
+                LEFT JOIN patient_queues q ON l.queue_id = q.id
                 WHERE l.id = ?
                 ORDER BY inv.id DESC
                 LIMIT 1
@@ -658,7 +779,7 @@ class LaboratoryOperation
         }
 
         if ($row) {
-            if ($row['payment_status'] === 'paid' || (float)$row['due_amount'] <= 0.001) {
+            if ($row['payment_status'] === 'paid' || $row['payment_status'] === 'partial' || (float)$row['due_amount'] <= 0.001) {
                 return true;
             }
             return false;

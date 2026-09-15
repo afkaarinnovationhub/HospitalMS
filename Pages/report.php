@@ -111,11 +111,11 @@ $recentActivities = ReportOperation::getRecentAuditActivities(8);
 // Handle CSV Export
 if (($_GET['action'] ?? '') === 'export_csv') {
     header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="MedCore_Hospital_Report_' . date('Ymd_His') . '.csv"');
+    header('Content-Disposition: attachment; filename="' . preg_replace('/[^A-Za-z0-9_]/', '_', HOSPITAL_SHORT_NAME) . '_Hospital_Report_' . date('Ymd_His') . '.csv"');
     $output = fopen('php://output', 'w');
 
     // Header
-    fputcsv($output, ['MedCore Systems - Executive Hospital Performance Report']);
+    fputcsv($output, [HOSPITAL_NAME . ' - Executive Hospital Performance Report']);
     fputcsv($output, ['Reporting Period', $rangeLabel]);
     fputcsv($output, ['Generated Date', date('Y-m-d H:i:s')]);
     fputcsv($output, []);
@@ -184,8 +184,8 @@ if (($_GET['action'] ?? '') === 'export_csv') {
     exit;
 }
 
-$pageTitle = 'Executive Reports & Analytics - MedCore Systems';
-$headerTitle = 'MedCore Management - Reports';
+$pageTitle = 'Executive Reports & Analytics - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Reports';
 $activePage = 'reports';
 
 include __DIR__ . '/../components/header.php';
@@ -216,7 +216,7 @@ include __DIR__ . '/../components/header.php';
         <div class="print-only mb-6 pb-4 border-b-2 border-primary">
             <div class="flex justify-between items-start">
                 <div>
-                    <h1 class="text-2xl font-bold text-primary">MedCore Systems Hospital</h1>
+                    <h1 class="text-2xl font-bold text-primary"><?php echo htmlspecialchars(HOSPITAL_NAME); ?></h1>
                     <p class="text-xs text-gray-600 font-medium">Executive Clinical, Operational &amp; Financial Performance Report</p>
                 </div>
                 <div class="text-right text-xs text-gray-600 font-mono">
@@ -231,7 +231,7 @@ include __DIR__ . '/../components/header.php';
             <div>
                 <h2 class="font-headline-lg text-xl sm:text-headline-lg font-bold text-on-surface flex items-center gap-2">
                     <span class="material-symbols-outlined text-primary text-[28px]">assessment</span>
-                    Hospital Reports &amp; Analytics
+                    Reports &amp; Analytics
                 </h2>
                 <p class="font-body-md text-xs sm:text-body-md text-on-surface-variant mt-0.5">
                     Welcome back, <strong class="text-primary font-bold"><?php echo e($currentUser['full_name'] ?? 'Executive Auditor'); ?></strong> &bull; Period: <span class="font-bold text-primary font-mono"><?php echo e($rangeLabel); ?></span>
@@ -281,7 +281,6 @@ include __DIR__ . '/../components/header.php';
                 </div>
                 <div>
                     <div class="font-mono text-xl sm:text-2xl font-bold text-primary">$<?php echo number_format($kpis['total_revenue'], 2); ?></div>
-                    <p class="text-[10px] text-on-surface-variant mt-0.5">Collected in period</p>
                 </div>
             </div>
 
@@ -295,7 +294,6 @@ include __DIR__ . '/../components/header.php';
                 </div>
                 <div>
                     <div class="font-mono text-xl sm:text-2xl font-bold text-on-surface"><?php echo number_format($kpis['total_encounters']); ?></div>
-                    <p class="text-[10px] text-secondary font-medium mt-0.5"><?php echo $kpis['total_consultations']; ?> Doctor Consults</p>
                 </div>
             </div>
 
@@ -309,7 +307,6 @@ include __DIR__ . '/../components/header.php';
                 </div>
                 <div>
                     <div class="font-mono text-xl sm:text-2xl font-bold text-on-surface"><?php echo number_format($kpis['completed_lab_orders']); ?></div>
-                    <p class="text-[10px] text-on-surface-variant mt-0.5">$<?php echo number_format($kpis['lab_revenue'], 2); ?> Revenue</p>
                 </div>
             </div>
 
@@ -323,7 +320,6 @@ include __DIR__ . '/../components/header.php';
                 </div>
                 <div>
                     <div class="font-mono text-xl sm:text-2xl font-bold text-on-surface">$<?php echo number_format($kpis['pharmacy_sales_total'], 2); ?></div>
-                    <p class="text-[10px] text-emerald-600 font-medium mt-0.5">+$<?php echo number_format($kpis['pharmacy_margin'], 2); ?> Margin</p>
                 </div>
             </div>
 
@@ -337,7 +333,6 @@ include __DIR__ . '/../components/header.php';
                 </div>
                 <div>
                     <div class="font-mono text-xl sm:text-2xl font-bold text-error">$<?php echo number_format($kpis['total_expenses'], 2); ?></div>
-                    <p class="text-[10px] text-on-surface-variant mt-0.5">Hospital disbursements</p>
                 </div>
             </div>
 
@@ -353,7 +348,6 @@ include __DIR__ . '/../components/header.php';
                     <div class="font-mono text-xl sm:text-2xl font-bold <?php echo ($kpis['net_profit'] >= 0) ? 'text-secondary' : 'text-error'; ?>">
                         $<?php echo number_format($kpis['net_profit'], 2); ?>
                     </div>
-                    <p class="text-[10px] text-on-surface-variant mt-0.5">Net clinical surplus</p>
                 </div>
             </div>
         </div>
@@ -700,13 +694,11 @@ include __DIR__ . '/../components/header.php';
                     <div class="bg-surface border border-outline-variant rounded-2xl p-4 shadow-xs">
                         <span class="text-[11px] font-semibold text-on-surface-variant block">Total Stock Valuation (Cost)</span>
                         <h4 class="text-2xl font-bold text-on-surface font-mono mt-1">$<?php echo number_format($inventorySummary['total_valuation_cost'], 2); ?></h4>
-                        <p class="text-[10px] text-on-surface-variant mt-0.5">Asset investment at wholesale price</p>
                     </div>
 
                     <div class="bg-surface border border-outline-variant rounded-2xl p-4 shadow-xs">
                         <span class="text-[11px] font-semibold text-on-surface-variant block">Total Retail Stock Value</span>
                         <h4 class="text-2xl font-bold text-secondary font-mono mt-1">$<?php echo number_format($inventorySummary['total_valuation_retail'], 2); ?></h4>
-                        <p class="text-[10px] text-secondary font-medium mt-0.5">+$<?php echo number_format($inventorySummary['potential_markup_gain'], 2); ?> Potential Margin</p>
                     </div>
 
                     <div class="bg-surface border border-outline-variant rounded-2xl p-4 shadow-xs">
@@ -714,7 +706,6 @@ include __DIR__ . '/../components/header.php';
                         <h4 class="text-2xl font-bold <?php echo ($inventorySummary['low_stock_count'] > 0 || $inventorySummary['out_of_stock_count'] > 0) ? 'text-amber-600' : 'text-on-surface'; ?> font-mono mt-1">
                             <?php echo $inventorySummary['low_stock_count']; ?> Low / <?php echo $inventorySummary['out_of_stock_count']; ?> Empty
                         </h4>
-                        <p class="text-[10px] text-on-surface-variant mt-0.5">Requires restock purchase order</p>
                     </div>
 
                     <div class="bg-surface border border-outline-variant rounded-2xl p-4 shadow-xs">
@@ -722,7 +713,6 @@ include __DIR__ . '/../components/header.php';
                         <h4 class="text-2xl font-bold <?php echo ($inventorySummary['expiring_batch_count'] > 0) ? 'text-error' : 'text-on-surface'; ?> font-mono mt-1">
                             <?php echo $inventorySummary['expiring_batch_count']; ?> Batches
                         </h4>
-                        <p class="text-[10px] text-on-surface-variant mt-0.5"><?php echo $inventorySummary['expiring_units']; ?> Units nearing expiry date</p>
                     </div>
                 </div>
 

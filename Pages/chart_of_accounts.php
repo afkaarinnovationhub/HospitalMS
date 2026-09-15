@@ -49,8 +49,8 @@ $typeParam = in_array($typeFilter, $validTypes, true) ? $typeFilter : null;
 
 $accounts = AccountingOperation::getAllAccounts($typeParam);
 
-$pageTitle = 'Chart of Accounts (COA) - MedCore Systems';
-$headerTitle = 'MedCore Management - Chart of Accounts';
+$pageTitle = 'Chart of Accounts (COA) - ' . HOSPITAL_NAME;
+$headerTitle = HOSPITAL_NAME . ' - Chart of Accounts';
 $activePage = 'accounting';
 
 include __DIR__ . '/../components/header.php';
@@ -88,21 +88,18 @@ include __DIR__ . '/../components/header.php';
                 </a>
                 <h2 class="font-headline-md text-xl sm:text-2xl font-bold text-on-surface flex items-center gap-2">
                     <span class="material-symbols-outlined text-primary text-[28px]">list_alt</span>
-                    Chart of Accounts (COA) Directory
+                    Chart of Accounts
                 </h2>
             </div>
-            <p class="font-body-sm text-xs sm:text-sm text-on-surface-variant mt-0.5 ml-7">
-                Structured ledger classification: Assets, Liabilities, Equity, Revenues, COGS, and Expenses.
-            </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <button type="button" onclick="openCreateAccountModal()" class="px-3.5 py-2 bg-primary hover:bg-primary-container text-on-primary font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer">
                 <span class="material-symbols-outlined text-[18px]">add_circle</span>
-                Add Custom Account
+                + New Account
             </button>
             <button type="button" onclick="window.print()" class="px-3.5 py-2 bg-surface-container border border-outline-variant hover:bg-surface-container-high text-on-surface font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs">
                 <span class="material-symbols-outlined text-[18px]">print</span>
-                Print COA
+                Print
             </button>
         </div>
     </div>
