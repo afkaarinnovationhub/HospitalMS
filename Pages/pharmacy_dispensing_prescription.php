@@ -56,6 +56,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         if (isset($result['error'])) {
             $errorMessage = $result['error'];
         }
+    } elseif ($action === 'external_purchase') {
+        $result = PharmacyController::handleExternalPurchase($_POST);
+        if (isset($result['error'])) {
+            $errorMessage = $result['error'];
+        }
     }
 }
 
@@ -363,20 +368,36 @@ include __DIR__ . '/../components/header.php';
                         </div>
 
                         <!-- Pharmacist Counseling Notes & Buttons -->
-                        <div class="grid grid-cols-1 sm:grid-cols-12 gap-md items-end">
-                            <div class="sm:col-span-7">
+                        <div class="space-y-3">
+                            <div>
                                 <label class="block font-label-md text-xs text-on-surface-variant mb-xs font-semibold">Pharmacist Counseling Notes</label>
-                                <input name="pharmacist_notes" class="w-full bg-surface-container-lowest border border-outline-variant rounded py-2 px-3 font-body-sm text-xs text-on-surface outline-none focus:border-primary" placeholder="Counseled on dosage & completing cycle..." type="text" value="<?php echo e($activePrescription['pharmacist_notes'] ?? ''); ?>">
+                                <input name="pharmacist_notes" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2 px-3 font-body-sm text-xs text-on-surface outline-none focus:border-primary" placeholder="Counseled on dosage & completing cycle..." type="text" value="<?php echo e($activePrescription['pharmacist_notes'] ?? ''); ?>">
                             </div>
-                            <div class="sm:col-span-5 flex items-end justify-start sm:justify-end gap-sm">
-                                <button type="button" onclick="window.print();" class="flex-1 sm:flex-none justify-center px-3 py-2 border border-outline-variant text-on-surface font-label-md text-xs rounded hover:bg-surface-container-low transition-colors flex items-center gap-1 font-medium cursor-pointer">
-                                    <span class="material-symbols-outlined text-[16px]">print</span>
-                                    Print Labels
-                                </button>
-                                <button type="submit" id="btn-dispense-submit" class="flex-1 sm:flex-none justify-center px-4 py-2 bg-primary text-on-primary font-label-md text-xs font-bold rounded hover:bg-primary-container transition-colors shadow-sm flex items-center gap-1 cursor-pointer">
-                                    <span class="material-symbols-outlined text-[16px]">check_circle</span>
-                                    Confirm &amp; Dispense
-                                </button>
+                            
+                            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2 border-t border-outline-variant/60">
+                                <!-- Left Actions: External Purchase & Slip Print -->
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <button type="button" onclick="openExternalPurchaseModal()" class="px-3.5 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-500/40 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs" title="Bukaanka ayaa doortay inuu daawada meel kale ka soo gato">
+                                        <span class="material-symbols-outlined text-[17px] text-amber-600 dark:text-amber-400">storefront</span>
+                                        Bannaanka Ayuu Ka Gadanayaa (External)
+                                    </button>
+                                    <button type="button" onclick="printActivePrescriptionSlip()" class="px-3 py-2 bg-surface-container-low hover:bg-surface-container border border-outline-variant text-on-surface rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs" title="Daabac warqadda rasmiga ah ee dhakhtarku qoray">
+                                        <span class="material-symbols-outlined text-[17px] text-primary">description</span>
+                                        Print Prescription (Rikheto)
+                                    </button>
+                                </div>
+
+                                <!-- Right Actions: Print Labels & Confirm Dispense -->
+                                <div class="flex items-center justify-end gap-2">
+                                    <button type="button" onclick="window.print();" class="px-3 py-2 border border-outline-variant text-on-surface font-label-md text-xs rounded-lg hover:bg-surface-container-low transition-colors flex items-center gap-1 font-medium cursor-pointer">
+                                        <span class="material-symbols-outlined text-[16px]">print</span>
+                                        Print Labels
+                                    </button>
+                                    <button type="submit" id="btn-dispense-submit" class="px-4 py-2 bg-primary text-on-primary font-label-md text-xs font-bold rounded-lg hover:bg-primary-container transition-colors shadow-sm flex items-center gap-1 cursor-pointer">
+                                        <span class="material-symbols-outlined text-[16px]">check_circle</span>
+                                        Confirm &amp; Dispense
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </form>
@@ -1063,6 +1084,77 @@ include __DIR__ . '/../components/header.php';
     }
 </script>
 
+<!-- MODAL: External Pharmacy Purchase Confirmation -->
+<div id="modal-external-purchase" class="fixed inset-0 z-50 bg-black/60 hidden backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-surface rounded-2xl max-w-lg w-full border border-outline-variant shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div class="p-4 sm:p-5 border-b border-outline-variant flex justify-between items-center bg-amber-500/10">
+            <div class="flex items-center gap-2.5">
+                <div class="w-10 h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center shadow-xs">
+                    <span class="material-symbols-outlined text-[22px]">storefront</span>
+                </div>
+                <div>
+                    <h3 class="font-bold text-sm sm:text-base text-on-surface">Iibsi Dibadda ah (External Pharmacy Purchase)</h3>
+                    <p class="text-xs text-on-surface-variant">Bukaanka ayaa doortay inuu daawada meel kale ka soo gato</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeExternalPurchaseModal()" class="w-8 h-8 rounded-full hover:bg-surface-container text-on-surface-variant flex items-center justify-center cursor-pointer">
+                <span class="material-symbols-outlined text-[20px]">close</span>
+            </button>
+        </div>
+
+        <form method="POST" action="pharmacy_dispensing_prescription.php" class="p-4 sm:p-5 space-y-4">
+            <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
+            <input type="hidden" name="action" value="external_purchase">
+            <input type="hidden" name="prescription_id" value="<?php echo (int)($activePrescription['id'] ?? 0); ?>">
+
+            <div class="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant text-xs space-y-1.5">
+                <div class="flex justify-between font-bold">
+                    <span class="text-on-surface-variant">Bukaanka:</span>
+                    <span class="text-on-surface font-mono"><?php echo e($activePrescription['patient_name'] ?? ''); ?> (<?php echo e($activePrescription['patient_mrn'] ?? ''); ?>)</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-on-surface-variant">Prescription Number:</span>
+                    <span class="text-primary font-mono font-bold"><?php echo e($activePrescription['rx_number'] ?? ''); ?></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-on-surface-variant">Dhakhtarka Qoray:</span>
+                    <span class="text-on-surface font-semibold"><?php echo e($activePrescription['doctor_name'] ?? ''); ?></span>
+                </div>
+            </div>
+
+            <div class="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs space-y-1 text-amber-950 dark:text-amber-200">
+                <p class="font-bold flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[16px] text-amber-600">info</span>
+                    Xeerarka Iibsiga Dibadda (Outsourced Dispensing):
+                </p>
+                <ul class="list-disc list-inside text-[11px] text-amber-800 dark:text-amber-300 space-y-0.5 pl-1">
+                    <li>Wax daawo ah lagama jarayo Bakhaarka Isbitaalka (Zero Stock Deduction).</li>
+                    <li>Wax biil ah laguma dalacayo bukaanka ($0.00 Cost).</li>
+                    <li>Daawadu waxay si toos ah uga baxaysaa liiska sugitaanka farmashiyaha.</li>
+                    <li>Waxaa toos loo daabacayaa <strong>Rikheeto Rasmi ah</strong> oo bukaanku meel kasta ugala soo bixi karo.</li>
+                </ul>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-on-surface mb-1">Qoraalka Farmashiistaha / Sababta (Counseling Notes)</label>
+                <input type="text" name="pharmacist_notes" 
+                       value="Bukaanka ayaa doortay inuu daawada ka soo gato farmashiye dibadda ah (External Purchase)" 
+                       class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-2.5 text-xs text-on-surface outline-none focus:border-primary">
+            </div>
+
+            <div class="flex justify-end gap-2 pt-2 border-t border-outline-variant">
+                <button type="button" onclick="closeExternalPurchaseModal()" class="px-4 py-2 bg-surface border border-outline-variant rounded-xl text-xs font-semibold hover:bg-surface-container cursor-pointer">
+                    Ka Noqo (Cancel)
+                </button>
+                <button type="submit" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer">
+                    <span class="material-symbols-outlined text-[16px]">check_circle</span>
+                    Xaqiiji &amp; Diyaari Rikheetada
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- MODAL: Distinct Pharmacy Dispensing & OTC Receipt -->
 <div id="pharmacy-receipt-modal" class="fixed inset-0 z-50 bg-black/60 hidden backdrop-blur-xs flex items-center justify-center p-4">
     <div class="bg-surface rounded-2xl border border-outline-variant max-w-sm w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
@@ -1266,6 +1358,11 @@ include __DIR__ . '/../components/header.php';
         document.getElementById('prx-notice').textContent = data.notice || 'Fadlan u qaado daawooyinka sida dhakhtarku kuu qoray.';
         document.getElementById('prx-subnotice').textContent = data.subnotice || 'Keep medications in a cool, dry place.';
 
+        if (data.is_external) {
+            document.getElementById('prx-total').textContent = '$0.00 (External Purchase)';
+            document.getElementById('prx-paid').textContent = '$0.00 (External Fulfillment)';
+        }
+
         document.getElementById('pharmacy-receipt-modal').classList.remove('hidden');
     }
 
@@ -1275,6 +1372,48 @@ include __DIR__ . '/../components/header.php';
 
     function executePrintPharmacyReceipt() {
         window.print();
+    }
+
+    function openExternalPurchaseModal() {
+        const modal = document.getElementById('modal-external-purchase');
+        if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeExternalPurchaseModal() {
+        const modal = document.getElementById('modal-external-purchase');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    function printActivePrescriptionSlip() {
+        <?php if (!empty($activePrescription)): ?>
+        const rxSlip = {
+            type: 'external_prescription',
+            title: 'OFFICIAL MEDICAL PRESCRIPTION (RIKHEETO DAWO)',
+            header: <?php echo json_encode(HOSPITAL_NAME . ' - Medical Prescription'); ?>,
+            badge: 'OFFICIAL MEDICAL PRESCRIPTION',
+            stamp: '✓ AUTHORIZED MEDICAL PRESCRIPTION',
+            token: <?php echo json_encode($activePrescription['rx_number']); ?>,
+            name: <?php echo json_encode($activePrescription['patient_name']); ?>,
+            mrn: <?php echo json_encode($activePrescription['patient_mrn']); ?>,
+            phone: <?php echo json_encode($activePrescription['patient_phone_dir'] ?? 'N/A'); ?>,
+            doctor: <?php echo json_encode($activePrescription['doctor_name']); ?>,
+            department: 'Outpatient Pharmacy Desk',
+            items: <?php echo json_encode($activePrescription['items'] ?? []); ?>,
+            subtotal: 0.00,
+            discount: 0.00,
+            credit_applied: 0.00,
+            net_total: 0.00,
+            paid_amount: 0.00,
+            due_amount: 0.00,
+            payment_method: 'EXTERNAL PHARMACY FULFILLMENT ($0.00)',
+            invoice_number: <?php echo json_encode($activePrescription['rx_number']); ?>,
+            notice: 'Rikheetadani waxay ansax ku tahay farmashiye kasta oo dibadda ah.',
+            subnotice: 'This prescription is officially authorized for patient fulfillment at external pharmacies.',
+            date_time: <?php echo json_encode(date('M d, Y g:i A')); ?>,
+            is_external: true
+        };
+        printPharmacyReceipt(rxSlip);
+        <?php endif; ?>
     }
 
     document.addEventListener('DOMContentLoaded', function() {

@@ -101,6 +101,77 @@ class PharmacyController
     }
 
     /**
+     * Handles marking a prescription as External Purchase (Outsourced / Patient buying elsewhere).
+     * Zero stock is deducted, zero charge billed to patient, and official prescription slip is primed for print.
+     *
+     * @param array $post
+     * @return array|null
+     */
+    public static function handleExternalPurchase(array $post): ?array
+    {
+        initSecureSession();
+        requireLogin();
+        requireRole([ROLE_SUPERADMIN_ICT, ROLE_MANAGER, ROLE_PHARMACY]);
+
+        if (!verifyCsrfToken($post['csrf_token'] ?? null)) {
+            return ['error' => 'Security token invalid or expired. Please refresh and try again.'];
+        }
+
+        $currentUser = getCurrentUser();
+        $userId = (int)($currentUser['id'] ?? 1);
+        $prescriptionId = (int)($post['prescription_id'] ?? 0);
+        $notes = sanitizeString($post['pharmacist_notes'] ?? '');
+
+        if ($prescriptionId <= 0) {
+            return ['error' => 'Invalid prescription selected.'];
+        }
+
+        try {
+            PharmacyOperation::markPrescriptionExternal($prescriptionId, $notes, $userId);
+
+            // Fetch prescription data to prime official medical prescription slip
+            $rxData = PharmacyOperation::getPrescriptionById($prescriptionId);
+
+            $_SESSION['hpms_pharmacy_receipt'] = [
+                'type'             => 'external_prescription',
+                'title'            => 'OFFICIAL MEDICAL PRESCRIPTION (RIKHEETO DAWO)',
+                'header'           => HOSPITAL_NAME . ' - Medical Prescription',
+                'badge'            => 'EXTERNAL PHARMACY PURCHASE (BANNAANKA)',
+                'stamp'            => '✓ AUTHORIZED MEDICAL PRESCRIPTION',
+                'token'            => $rxData['rx_number'] ?? '',
+                'name'             => $rxData['patient_name'] ?? 'Prescription Patient',
+                'mrn'              => $rxData['patient_mrn'] ?? 'N/A',
+                'phone'            => $rxData['patient_phone_dir'] ?? 'N/A',
+                'doctor'           => $rxData['doctor_name'] ?? 'Attending Clinician',
+                'department'       => 'Outpatient Pharmacy Desk',
+                'items'            => $rxData['items'] ?? [],
+                'subtotal'         => 0.00,
+                'discount'         => 0.00,
+                'credit_applied'   => 0.00,
+                'net_total'        => 0.00,
+                'paid_amount'      => 0.00,
+                'due_amount'       => 0.00,
+                'payment_method'   => 'EXTERNAL PURCHASE ($0.00)',
+                'invoice_number'   => $rxData['rx_number'] ?? ('RX-' . $prescriptionId),
+                'notice'           => 'Rikheetadani waxay ansax ku tahay farmashiye kasta oo dibadda ah.',
+                'subnotice'        => 'This prescription is officially authorized for patient fulfillment at external pharmacies.',
+                'date_time'        => date('M d, Y g:i A'),
+                'is_external'      => true,
+            ];
+
+            setFlashMessage('success', "Daawada " . ($rxData['rx_number'] ?? '') . " waxaa loo calaamadeeyay in bukaanku bannaanka ka iibsanayo. Rikheetadii rasmiga ahayd waa la diyaariyay.");
+            if (!defined('HPMS_TESTING')) {
+                safeRedirect('pharmacy_dispensing_prescription.php');
+            }
+            return ['success' => true];
+
+        } catch (Exception $e) {
+            error_log('[HPMS PHARMACY EXTERNAL ERROR] ' . $e->getMessage());
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Handles direct Walk-in (Over-The-Counter) POS sales.
      *
      * @param array $post

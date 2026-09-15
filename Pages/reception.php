@@ -72,9 +72,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     }
 }
 
-$kpis     = PatientOperation::getPatientSummaryKPIs();
-$queue    = PatientOperation::getQueue('all');
-$doctors  = PatientOperation::getDoctorsList();
+$kpis            = PatientOperation::getPatientSummaryKPIs();
+$queue           = PatientOperation::getQueue('all');
+$doctors         = PatientOperation::getDoctorsList();
+$todayFollowUps  = PatientOperation::getTodayScheduledFollowUps();
+$followUpKPIs    = PatientOperation::getFollowUpKPIsToday();
 
 // Fetch per-doctor queue counts today
 $pdo = getDBConnection();
@@ -139,7 +141,7 @@ include __DIR__ . '/../components/header.php';
         <?php endif; ?>
 
         <!-- Reception Metric Summary Bento Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-md">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-md">
             <div class="bg-surface border border-outline-variant rounded-xl p-4 shadow-sm flex items-center justify-between">
                 <div>
                     <p class="font-label-md text-xs text-on-surface-variant uppercase font-semibold">Today's Registered</p>
@@ -147,6 +149,19 @@ include __DIR__ . '/../components/header.php';
                 </div>
                 <div class="w-10 h-10 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center">
                     <span class="material-symbols-outlined text-[20px]">how_to_reg</span>
+                </div>
+            </div>
+
+            <div class="bg-surface border border-outline-variant rounded-xl p-4 shadow-sm flex items-center justify-between">
+                <div>
+                    <p class="font-label-md text-xs text-on-surface-variant uppercase font-semibold">Today's Follow-ups</p>
+                    <p class="font-display-lg text-2xl font-bold text-emerald-600 mt-1"><?php echo number_format($followUpKPIs['total_scheduled']); ?></p>
+                    <p class="text-[10px] text-on-surface-variant mt-0.5">
+                        <span class="font-bold text-emerald-600"><?php echo (int)($followUpKPIs['completed_count'] ?? 0); ?></span> Done • <span class="font-bold text-primary"><?php echo (int)($followUpKPIs['arrived_count'] ?? 0); ?></span> Arrived • <span class="font-bold text-amber-600"><?php echo (int)($followUpKPIs['pending_count'] ?? 0); ?></span> Pending
+                    </p>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-emerald-500/15 text-emerald-600 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-[20px]">event_available</span>
                 </div>
             </div>
 
@@ -214,6 +229,119 @@ include __DIR__ . '/../components/header.php';
                     <!-- Dynamic items rendered via JS -->
                 </div>
             </div>
+        </div>
+
+        <!-- Dedicated Section: Today's Scheduled Follow-up Appointments -->
+        <div class="bg-surface border border-outline-variant rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-outline-variant pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                        <span class="material-symbols-outlined text-[22px]">calendar_month</span>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-bold text-sm sm:text-base text-on-surface">
+                                Ballamaha Dib-u-eegista ee Maanta (Today's Scheduled Follow-ups)
+                            </h3>
+                            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                <?php echo count($todayFollowUps); ?> Scheduled
+                            </span>
+                        </div>
+                        <p class="text-xs text-on-surface-variant mt-0.5">
+                            Bukaannada uu dhakhtarku ballan u qabtay maanta waxay helayaan <strong>Check-in lacag la'aan ah ($0.00 Free Waiver)</strong>.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <?php if (empty($todayFollowUps)): ?>
+                <div class="py-6 text-center text-on-surface-variant text-xs space-y-1">
+                    <span class="material-symbols-outlined text-3xl text-outline mb-1">event_available</span>
+                    <p class="font-semibold text-sm">Ma jiraan bukaan maanta ballan dib-u-eegis ah u qorshaysan.</p>
+                    <p class="text-[11px]">Haddii bukaan aan ballan lahayn yimaado, fadlan ka raadi baarka sare oo lacagta caadiga ah geli.</p>
+                </div>
+            <?php else: ?>
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                    <?php foreach ($todayFollowUps as $fu): ?>
+                        <?php 
+                            $isCompleted = !empty($fu['is_completed']) || ($fu['follow_up_status'] ?? '') === 'completed' || ($fu['queue_status'] ?? '') === 'completed';
+                            $isCheckedIn = !empty($fu['is_checked_in']);
+                            $initial = strtoupper(substr($fu['first_name'] ?? 'P', 0, 1) . substr($fu['last_name'] ?? '', 0, 1));
+                            $cardBorder = $isCompleted ? 'border-emerald-500/30 bg-emerald-500/5 opacity-85' : ($isCheckedIn ? 'border-outline-variant bg-surface-container-low/60 opacity-80' : 'border-emerald-500/40 bg-emerald-500/5 hover:border-emerald-500 shadow-xs');
+                        ?>
+                        <div class="p-3.5 rounded-xl border <?php echo $cardBorder; ?> transition-all flex flex-col justify-between gap-3">
+                            <div class="space-y-2">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="flex items-center gap-2.5 min-w-0">
+                                        <div class="w-9 h-9 rounded-xl bg-primary text-on-primary font-bold text-xs flex items-center justify-center shrink-0">
+                                            <?php echo e($initial); ?>
+                                        </div>
+                                        <div class="min-w-0">
+                                            <h4 class="font-bold text-xs sm:text-sm text-on-surface truncate">
+                                                <?php echo e($fu['patient_name']); ?>
+                                            </h4>
+                                            <div class="flex items-center gap-1.5 font-mono text-[10px] text-on-surface-variant flex-wrap">
+                                                <span class="font-bold bg-surface-container px-1.5 py-0.2 rounded"><?php echo e($fu['mrn']); ?></span>
+                                                <span>📞 <?php echo e($fu['phone'] ?: 'No phone'); ?></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <?php if ($isCompleted): ?>
+                                        <span class="bg-emerald-700 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 shrink-0">
+                                            <span class="material-symbols-outlined text-[13px]">task_alt</span>
+                                            La Dhameeyay
+                                        </span>
+                                    <?php elseif ($isCheckedIn): ?>
+                                        <span class="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 shrink-0">
+                                            <span class="material-symbols-outlined text-[13px]">check_circle</span>
+                                            Yimid (<?php echo e($fu['queue_token']); ?>)
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 shrink-0">
+                                            <span class="material-symbols-outlined text-[13px]">schedule</span>
+                                            La Sugayaa
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
+
+                                <div class="p-2 rounded-lg bg-surface border border-outline-variant/60 text-xs space-y-1">
+                                    <p class="text-[11px] text-on-surface">
+                                        <span class="text-on-surface-variant">Attending Doctor:</span>
+                                        <strong class="text-primary"><?php echo e($fu['doctor_name']); ?></strong> (<?php echo e($fu['doctor_title'] ?: 'Specialist'); ?>)
+                                    </p>
+                                    <p class="text-[11px] text-on-surface-variant truncate">
+                                        Diagnosis: <em class="text-on-surface"><?php echo e($fu['assessment_diagnosis'] ?: 'Follow-up Consultation'); ?></em>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="pt-1 flex items-center justify-between border-t border-outline-variant/40 gap-2">
+                                <span class="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-[13px]">check_circle</span>
+                                    Fee: $0.00 (Free Waiver)
+                                </span>
+                                <?php if ($isCompleted): ?>
+                                    <span class="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                                        <span class="material-symbols-outlined text-[14px]">check_circle</span>
+                                        Consultation Completed
+                                    </span>
+                                <?php elseif ($isCheckedIn): ?>
+                                    <span class="text-[11px] font-bold text-on-surface-variant font-mono">
+                                        Queue: <?php echo e($fu['queue_token']); ?> (<?php echo ucfirst(e($fu['queue_status'])); ?>)
+                                    </span>
+                                <?php else: ?>
+                                    <button type="button" 
+                                            onclick='checkInFollowUpPatient(<?php echo json_encode($fu, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>)'
+                                            class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center gap-1 transition-all cursor-pointer shrink-0">
+                                        <span class="material-symbols-outlined text-[15px]">how_to_reg</span>
+                                        Check-in as Follow-up
+                                    </button>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
         </div>
 
         <!-- Main Functional Layout (8 Cols Intake Worklist + 4 Cols Live Doctor Rooms) -->
@@ -397,6 +525,20 @@ include __DIR__ . '/../components/header.php';
             <?php echo csrfField(); ?>
             <input type="hidden" name="action" value="quick_check_in">
             <input type="hidden" id="intake_patient_id" name="patient_id" value="">
+
+            <!-- Follow-up Alert Banner inside Modal (Visible for Scheduled Follow-ups) -->
+            <div id="modal-followup-banner" class="hidden p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-950 dark:text-emerald-200 text-xs flex items-center justify-between gap-2 shadow-xs">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="material-symbols-outlined text-emerald-600 text-[22px] shrink-0 animate-pulse">event_available</span>
+                    <div class="min-w-0">
+                        <p class="font-bold text-emerald-800 dark:text-emerald-300">BALLAN MAANTA AH (SCHEDULED FOLLOW-UP)</p>
+                        <p class="text-[11px] mt-0.5 text-on-surface truncate" id="modal-followup-banner-text">
+                            Bukaankan wuxuu maanta ballan dib-u-eegis ah la leeyahay dhakhtarka. Lacagta waa <strong>$0.00 (Free Waiver)</strong>.
+                        </p>
+                    </div>
+                </div>
+                <span class="text-[10px] font-bold font-mono px-2.5 py-0.5 rounded-full bg-emerald-600 text-white shrink-0">FREE $0</span>
+            </div>
 
             <!-- Unified Optional Patient Search Bar -->
             <div class="p-3 bg-surface-container-low rounded-xl border border-outline-variant/80 space-y-2">
@@ -700,6 +842,8 @@ include __DIR__ . '/../components/header.php';
         document.getElementById('quick-intake-modal').classList.add('hidden');
         const modalResults = document.getElementById('modal-search-results');
         if (modalResults) modalResults.classList.add('hidden');
+        const banner = document.getElementById('modal-followup-banner');
+        if (banner) banner.classList.add('hidden');
     }
 
     // --- Search Handlers with Debounce ---
@@ -822,6 +966,14 @@ include __DIR__ . '/../components/header.php';
             const creditBadge = credit > 0.005 ? `<span class="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-500/20 border border-emerald-500/30 px-1.5 py-0.2 rounded"><span class="material-symbols-outlined text-[12px]">account_balance_wallet</span> Credit: $${credit.toFixed(2)}</span>` : '';
             const initial = (fullName.trim().charAt(0) || 'P').toUpperCase();
 
+            // Follow-up status indicators
+            let followUpBadge = '';
+            if (p.is_due_today) {
+                followUpBadge = `<span class="bg-emerald-600 text-white font-bold text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse shadow-xs"><span class="material-symbols-outlined text-[12px]">notifications_active</span> Ballan Maanta (Free $0): Dr. ${escapeHtml(p.follow_up_doctor_name || '')}</span>`;
+            } else if (p.has_follow_up) {
+                followUpBadge = `<span class="bg-primary/20 text-primary font-bold text-[10px] px-1.5 py-0.2 rounded font-mono">📅 Ballan: ${escapeHtml(p.follow_up_date)}</span>`;
+            }
+
             html += `
             <div onclick="selectPatientById(${p.id}, ${isGlobal})" class="p-3 hover:bg-primary-fixed/20 transition-colors cursor-pointer flex items-center justify-between gap-2.5 group">
                 <div class="flex items-center gap-2.5 min-w-0">
@@ -834,6 +986,7 @@ include __DIR__ . '/../components/header.php';
                             <span class="font-mono text-[10px] font-bold bg-surface-container-high px-1.5 py-0.2 rounded text-on-surface-variant">${mrn}</span>
                             ${blood}
                             ${creditBadge}
+                            ${followUpBadge}
                         </div>
                         <p class="text-[11px] text-on-surface-variant font-mono mt-0.5 flex items-center gap-1.5 flex-wrap">
                             <span class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[13px]">${genderIcon}</span> ${gender}</span>
@@ -906,9 +1059,66 @@ include __DIR__ . '/../components/header.php';
         const clearBtn = document.getElementById('clear-modal-search');
         if (clearBtn) clearBtn.classList.add('hidden');
 
-        // Focus doctor selection
-        const docSelect = document.getElementById('reception_doc_select');
-        if (docSelect) docSelect.focus();
+        // Check if patient has a follow-up TODAY (Scenario 1 vs Scenario 2)
+        const banner = document.getElementById('modal-followup-banner');
+        const bannerText = document.getElementById('modal-followup-banner-text');
+        const chiefInput = document.querySelector('input[name="chief_complaint"]');
+
+        if (patient.is_due_today) {
+            // SCENARIO 1: Scheduled Follow-up is Free ($0.00)
+            if (patient.follow_up_doctor_id) {
+                const docSelect = document.getElementById('reception_doc_select');
+                if (docSelect) {
+                    docSelect.value = String(patient.follow_up_doctor_id);
+                    updateReceptionFee(docSelect);
+                }
+            }
+            // Overwrite fee to 0.00 (Free Waiver)
+            setReceptionFee(0);
+
+            if (chiefInput) {
+                chiefInput.value = 'Scheduled Follow-up: ' + (patient.follow_up_diagnosis || 'Follow-up Consultation');
+            }
+
+            if (banner) {
+                if (bannerText) {
+                    bannerText.innerHTML = `Bukaankan wuxuu maanta ballan dib-u-eegis ah la leeyahay <strong>${escapeHtml(patient.follow_up_doctor_name || 'Dhakhtarka')}</strong>. Qiimaha waxaa laga dhigay <strong>$0.00 (Free Waiver)</strong>.`;
+                }
+                banner.classList.remove('hidden');
+            }
+        } else {
+            // SCENARIO 2: Routine Re-visit / No Follow-up Today -> Full Normal Process & Standard Fee
+            if (banner) banner.classList.add('hidden');
+            if (chiefInput && chiefInput.value.startsWith('Scheduled Follow-up:')) {
+                chiefInput.value = '';
+            }
+            const docSelect = document.getElementById('reception_doc_select');
+            if (docSelect) {
+                updateReceptionFee(docSelect);
+                docSelect.focus();
+            }
+        }
+    }
+
+    function checkInFollowUpPatient(fu) {
+        if (!fu) return;
+        openQuickIntakeModal();
+
+        const pObj = {
+            id: fu.patient_id,
+            first_name: fu.first_name,
+            last_name: fu.last_name,
+            phone: fu.phone,
+            mrn: fu.mrn,
+            gender: fu.gender,
+            is_due_today: true,
+            follow_up_doctor_id: fu.doctor_id,
+            follow_up_doctor_name: fu.doctor_name,
+            follow_up_diagnosis: fu.assessment_diagnosis,
+            account_credit: 0
+        };
+
+        selectPatientInModal(pObj);
     }
 
     function clearSelectedPatient() {
@@ -918,6 +1128,14 @@ include __DIR__ . '/../components/header.php';
         document.getElementById('intake_phone').value = '';
         const card = document.getElementById('selected-patient-card');
         if (card) card.classList.add('hidden');
+        const banner = document.getElementById('modal-followup-banner');
+        if (banner) banner.classList.add('hidden');
+        const chiefInput = document.querySelector('input[name="chief_complaint"]');
+        if (chiefInput && chiefInput.value.startsWith('Scheduled Follow-up:')) {
+            chiefInput.value = '';
+        }
+        const docSelect = document.getElementById('reception_doc_select');
+        if (docSelect) updateReceptionFee(docSelect);
         const input = document.getElementById('modal-patient-search');
         if (input) {
             input.value = '';

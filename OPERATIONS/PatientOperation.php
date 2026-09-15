@@ -1086,4 +1086,258 @@ class PatientOperation
             // ignore
         }
     }
+
+    /**
+     * Retrieves all scheduled and historical follow-up appointments for a patient.
+     *
+     * @param int $patientId
+     * @return array
+     */
+    public static function getPatientFollowUps(int $patientId): array
+    {
+        $pdo = getDBConnection();
+        self::ensureFollowUpColumnsExist();
+
+        $stmt = $pdo->prepare("
+            SELECT 
+                c.id as consultation_id,
+                c.consultation_number,
+                c.doctor_id,
+                c.follow_up_date,
+                COALESCE(c.follow_up_status, 'pending') as follow_up_status_raw,
+                c.follow_up_completed_at,
+                c.assessment_diagnosis,
+                c.treatment_plan,
+                c.created_at as encounter_date,
+                c.status as consultation_status,
+                u.full_name as doctor_name,
+                u.professional_title as doctor_title,
+                CASE 
+                    WHEN c.follow_up_status = 'completed' THEN 'completed'
+                    WHEN c.follow_up_status = 'cancelled' THEN 'cancelled'
+                    WHEN c.follow_up_date = CURDATE() THEN 'due_today'
+                    WHEN c.follow_up_date > CURDATE() THEN 'upcoming'
+                    ELSE 'past'
+                END as follow_up_status,
+                DATEDIFF(c.follow_up_date, CURDATE()) as days_diff
+            FROM consultations c
+            JOIN users u ON c.doctor_id = u.id
+            WHERE c.patient_id = :id AND c.follow_up_date IS NOT NULL
+            ORDER BY c.follow_up_date DESC, c.id DESC
+        ");
+        $stmt->execute([':id' => $patientId]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Retrieves historical vitals timeline for a patient.
+     *
+     * @param int $patientId
+     * @param int $limit
+     * @return array
+     */
+    public static function getPatientVitalsHistory(int $patientId, int $limit = 25): array
+    {
+        $pdo = getDBConnection();
+        $stmt = $pdo->prepare("
+            SELECT v.*, u.full_name as recorded_by_name
+            FROM patient_vitals v
+            LEFT JOIN users u ON v.recorded_by = u.id
+            WHERE v.patient_id = :id
+            ORDER BY v.recorded_at DESC
+            LIMIT :lim
+        ");
+        $stmt->bindValue(':id', $patientId, PDO::PARAM_INT);
+        $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Retrieves comprehensive clinical counts and next follow-up date for a patient.
+     *
+     * @param int $patientId
+     * @return array
+     */
+    public static function getPatientClinicalSummary(int $patientId): array
+    {
+        $pdo = getDBConnection();
+
+        // 1. Consultations count
+        $stmtCns = $pdo->prepare("SELECT COUNT(*) FROM consultations WHERE patient_id = ?");
+        $stmtCns->execute([$patientId]);
+        $totalConsultations = (int)$stmtCns->fetchColumn();
+
+        // 2. Lab orders count
+        $stmtLab = $pdo->prepare("
+            SELECT 
+                COUNT(*) as total_orders,
+                COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0) as completed_orders
+            FROM lab_orders 
+            WHERE patient_id = ?
+        ");
+        $stmtLab->execute([$patientId]);
+        $labRow = $stmtLab->fetch();
+        $totalLabOrders = (int)($labRow['total_orders'] ?? 0);
+        $completedLabOrders = (int)($labRow['completed_orders'] ?? 0);
+
+        // 3. Prescriptions count
+        $stmtRx = $pdo->prepare("
+            SELECT 
+                COUNT(*) as total_rx,
+                COALESCE(SUM(CASE WHEN status = 'dispensed' THEN 1 ELSE 0 END), 0) as dispensed_rx
+            FROM prescriptions p
+            JOIN patients pt ON (p.patient_mrn = pt.mrn OR p.patient_name = CONCAT(pt.first_name, ' ', pt.last_name))
+            WHERE pt.id = ?
+        ");
+        $stmtRx->execute([$patientId]);
+        $rxRow = $stmtRx->fetch();
+        $totalRx = (int)($rxRow['total_rx'] ?? 0);
+        $dispensedRx = (int)($rxRow['dispensed_rx'] ?? 0);
+
+        // 4. Next active follow-up (today or future, not yet completed)
+        $stmtNextFu = $pdo->prepare("
+            SELECT c.follow_up_date, c.assessment_diagnosis, u.full_name as doctor_name,
+                   DATEDIFF(c.follow_up_date, CURDATE()) as days_diff
+            FROM consultations c
+            JOIN users u ON c.doctor_id = u.id
+            WHERE c.patient_id = ? 
+              AND c.follow_up_date >= CURDATE()
+              AND (c.follow_up_status IS NULL OR c.follow_up_status = 'pending')
+            ORDER BY c.follow_up_date ASC
+            LIMIT 1
+        ");
+        $stmtNextFu->execute([$patientId]);
+        $nextFollowUp = $stmtNextFu->fetch() ?: null;
+
+        return [
+            'total_consultations'  => $totalConsultations,
+            'total_lab_orders'     => $totalLabOrders,
+            'completed_lab_orders' => $completedLabOrders,
+            'total_prescriptions'  => $totalRx,
+            'dispensed_rx'         => $dispensedRx,
+            'next_follow_up'       => $nextFollowUp,
+        ];
+    }
+
+    /**
+     * Ensures consultations table has follow_up_status and follow_up_completed_at columns.
+     */
+    public static function ensureFollowUpColumnsExist(): void
+    {
+        static $checked = false;
+        if ($checked) return;
+        $checked = true;
+
+        try {
+            $pdo = getDBConnection();
+            $stmt = $pdo->query("SHOW COLUMNS FROM consultations LIKE 'follow_up_status'");
+            if (!$stmt->fetch()) {
+                $pdo->exec("ALTER TABLE consultations ADD COLUMN follow_up_status ENUM('pending', 'completed', 'cancelled') NOT NULL DEFAULT 'pending' AFTER follow_up_date");
+            }
+            $stmt2 = $pdo->query("SHOW COLUMNS FROM consultations LIKE 'follow_up_completed_at'");
+            if (!$stmt2->fetch()) {
+                $pdo->exec("ALTER TABLE consultations ADD COLUMN follow_up_completed_at DATETIME NULL AFTER follow_up_status");
+            }
+        } catch (Exception $e) {
+            error_log('[HPMS ENSURE COLUMNS ERROR] ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Retrieves scheduled follow-ups for a specific date (defaults to today).
+     * Also checks if each patient has already checked into the queue today or completed consultation.
+     *
+     * @param string|null $date Format YYYY-MM-DD
+     * @return array
+     */
+    public static function getTodayScheduledFollowUps(?string $date = null): array
+    {
+        $pdo = getDBConnection();
+        self::ensureFollowUpColumnsExist();
+        $targetDate = $date ?: date('Y-m-d');
+
+        $stmt = $pdo->prepare("
+            SELECT 
+                c.id as consultation_id,
+                c.consultation_number,
+                c.follow_up_date,
+                COALESCE(c.follow_up_status, 'pending') as follow_up_status,
+                c.follow_up_completed_at,
+                c.assessment_diagnosis,
+                c.treatment_plan,
+                c.created_at as initial_encounter_date,
+                p.id as patient_id,
+                p.mrn,
+                p.first_name,
+                p.last_name,
+                CONCAT(p.first_name, ' ', p.last_name) as patient_name,
+                p.phone,
+                p.gender,
+                p.dob,
+                TIMESTAMPDIFF(YEAR, p.dob, CURDATE()) as age,
+                p.blood_group,
+                u.id as doctor_id,
+                u.full_name as doctor_name,
+                u.professional_title as doctor_title,
+                COALESCE(u.consultation_fee, 10.00) as doctor_fee,
+                pq.id as queue_id,
+                pq.token_number as queue_token,
+                pq.status as queue_status,
+                pq.queued_at,
+                CASE WHEN pq.id IS NOT NULL THEN 1 ELSE 0 END as is_checked_in,
+                CASE 
+                    WHEN c.follow_up_status = 'completed' OR pq.status = 'completed' THEN 1 
+                    ELSE 0 
+                END as is_completed
+            FROM consultations c
+            JOIN patients p ON c.patient_id = p.id
+            JOIN users u ON c.doctor_id = u.id
+            LEFT JOIN patient_queues pq ON (
+                pq.patient_id = p.id 
+                AND DATE(pq.queued_at) = :queue_date 
+                AND pq.status != 'cancelled'
+            )
+            WHERE c.follow_up_date = :target_date
+            ORDER BY is_completed ASC, is_checked_in ASC, c.id DESC
+        ");
+
+        $stmt->execute([
+            ':target_date' => $targetDate,
+            ':queue_date'  => $targetDate,
+        ]);
+
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Summary KPI metrics for today's scheduled follow-ups.
+     *
+     * @return array
+     */
+    public static function getFollowUpKPIsToday(): array
+    {
+        $followUps = self::getTodayScheduledFollowUps();
+        $total = count($followUps);
+        $arrived = 0;
+        $completed = 0;
+        foreach ($followUps as $fu) {
+            $isDone = !empty($fu['is_completed']) || ($fu['follow_up_status'] ?? '') === 'completed' || ($fu['queue_status'] ?? '') === 'completed';
+            if ($isDone) {
+                $completed++;
+                $arrived++;
+            } elseif (!empty($fu['is_checked_in'])) {
+                $arrived++;
+            }
+        }
+        $pending = max(0, $total - $arrived);
+
+        return [
+            'total_scheduled' => $total,
+            'arrived_count'   => $arrived,
+            'completed_count' => $completed,
+            'pending_count'   => $pending,
+        ];
+    }
 }
+

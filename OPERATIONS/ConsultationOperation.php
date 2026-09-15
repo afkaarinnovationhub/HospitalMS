@@ -349,6 +349,26 @@ class ConsultationOperation
                 PatientOperation::updateQueueStatus($queueId, 'completed');
             }
 
+            // 6. Mark any prior pending follow-up appointment for this patient as completed
+            try {
+                $stmtFUp = $pdo->prepare("
+                    UPDATE consultations
+                    SET follow_up_status = 'completed',
+                        follow_up_completed_at = CURRENT_TIMESTAMP
+                    WHERE patient_id = :patient_id
+                      AND id != :current_cns_id
+                      AND follow_up_date IS NOT NULL
+                      AND (follow_up_status = 'pending' OR follow_up_status IS NULL)
+                      AND follow_up_date <= CURDATE()
+                ");
+                $stmtFUp->execute([
+                    ':patient_id'     => $patientId,
+                    ':current_cns_id' => $consultationId,
+                ]);
+            } catch (Exception $eFu) {
+                error_log('[HPMS FOLLOW-UP STATUS COMPLETE ERROR] ' . $eFu->getMessage());
+            }
+
             $pdo->commit();
             return $consultationId;
 

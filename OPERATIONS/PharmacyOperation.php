@@ -12,6 +12,27 @@ require_once __DIR__ . '/../OPERATIONS/InventoryOperation.php';
 class PharmacyOperation
 {
     /**
+     * Ensures prescriptions.status ENUM supports 'external_purchase'.
+     */
+    public static function ensurePrescriptionStatusEnumSupportsExternal(): void
+    {
+        static $checked = false;
+        if ($checked) return;
+        $checked = true;
+
+        try {
+            $pdo = getDBConnection();
+            $stmt = $pdo->query("SHOW COLUMNS FROM prescriptions LIKE 'status'");
+            $col = $stmt->fetch();
+            if ($col && strpos((string)$col['Type'], 'external_purchase') === false) {
+                $pdo->exec("ALTER TABLE prescriptions MODIFY COLUMN status ENUM('pending','partially_dispensed','dispensed','cancelled','external_purchase') NOT NULL DEFAULT 'pending'");
+            }
+        } catch (Exception $e) {
+            error_log('[HPMS ENSURE PRESCRIPTION STATUS ERROR] ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Fetches all pending or partially dispensed electronic doctor prescriptions.
      *
      * @return array
@@ -19,6 +40,7 @@ class PharmacyOperation
     public static function getPendingPrescriptionsQueue(): array
     {
         $pdo = getDBConnection();
+        self::ensurePrescriptionStatusEnumSupportsExternal();
         $sql = "
             SELECT 
                 p.*,
@@ -32,6 +54,47 @@ class PharmacyOperation
             ORDER BY FIELD(p.status, 'pending', 'partially_dispensed'), p.created_at DESC
         ";
         return $pdo->query($sql)->fetchAll();
+    }
+
+    /**
+     * Marks a doctor prescription as External Purchase (Patient chooses to purchase elsewhere).
+     * Zero stock is deducted from hospital inventory, zero charge billed to patient.
+     *
+     * @param int $prescriptionId
+     * @param string|null $notes
+     * @param int $userId
+     * @return bool
+     */
+    public static function markPrescriptionExternal(int $prescriptionId, ?string $notes = null, int $userId = 1): bool
+    {
+        $pdo = getDBConnection();
+        self::ensurePrescriptionStatusEnumSupportsExternal();
+
+        $prescription = self::getPrescriptionById($prescriptionId);
+        if (!$prescription) {
+            throw new InvalidArgumentException('Prescription not found.');
+        }
+
+        if (!in_array($prescription['status'], ['pending', 'partially_dispensed'], true)) {
+            throw new InvalidArgumentException('This prescription is already marked as ' . $prescription['status'] . '.');
+        }
+
+        $formattedNotes = trim($notes ?: 'Bukaanka ayaa doortay inuu daawada ka soo gato farmashiye dibadda ah (External Purchase).');
+
+        $stmt = $pdo->prepare("
+            UPDATE prescriptions
+            SET status = 'external_purchase',
+                pharmacist_notes = :notes,
+                dispensed_by = :user_id,
+                dispensed_at = NOW()
+            WHERE id = :id
+        ");
+
+        return $stmt->execute([
+            ':notes'   => $formattedNotes,
+            ':user_id' => $userId,
+            ':id'      => $prescriptionId,
+        ]);
     }
 
     /**

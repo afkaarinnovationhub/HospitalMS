@@ -975,25 +975,49 @@ try {
             
             $formatted = [];
             $debtStmt = $pdo->prepare("SELECT COALESCE(SUM(due_amount), 0.00) FROM invoices WHERE patient_id = ? AND due_amount > 0.005");
+            $fuStmt = $pdo->prepare("
+                SELECT c.follow_up_date, c.assessment_diagnosis, c.doctor_id, u.full_name as doctor_name,
+                       u.professional_title as doctor_title, COALESCE(u.consultation_fee, 10.00) as doctor_fee,
+                       DATEDIFF(c.follow_up_date, CURDATE()) as days_diff
+                FROM consultations c
+                JOIN users u ON c.doctor_id = u.id
+                WHERE c.patient_id = ? 
+                  AND c.follow_up_date >= CURDATE()
+                  AND (c.follow_up_status IS NULL OR c.follow_up_status = 'pending')
+                ORDER BY c.follow_up_date ASC
+                LIMIT 1
+            ");
+
             foreach ($patients as $p) {
                 $debtStmt->execute([$p['id']]);
                 $curDebt = (float)$debtStmt->fetchColumn();
 
+                $fuStmt->execute([$p['id']]);
+                $nextFu = $fuStmt->fetch(PDO::FETCH_ASSOC);
+
                 $formatted[] = [
-                    'id'             => (int)$p['id'],
-                    'mrn'            => $p['mrn'] ?? '',
-                    'first_name'     => $p['first_name'] ?? '',
-                    'last_name'      => $p['last_name'] ?? '',
-                    'full_name'      => trim(($p['first_name'] ?? '') . ' ' . ($p['last_name'] ?? '')),
-                    'phone'          => $p['phone'] ?? '',
-                    'gender'         => $p['gender'] ?? 'male',
-                    'dob'            => $p['dob'] ?? '',
-                    'age'            => isset($p['age']) ? (int)$p['age'] : null,
-                    'blood_group'    => $p['blood_group'] ?? '',
-                    'allergies'      => $p['allergies'] ?? 'None known',
-                    'account_credit' => (float)($p['account_credit'] ?? 0.0),
-                    'current_debt'   => $curDebt,
-                    'address'        => $p['address'] ?? '',
+                    'id'                   => (int)$p['id'],
+                    'mrn'                  => $p['mrn'] ?? '',
+                    'first_name'           => $p['first_name'] ?? '',
+                    'last_name'            => $p['last_name'] ?? '',
+                    'full_name'            => trim(($p['first_name'] ?? '') . ' ' . ($p['last_name'] ?? '')),
+                    'phone'                => $p['phone'] ?? '',
+                    'gender'               => $p['gender'] ?? 'male',
+                    'dob'                  => $p['dob'] ?? '',
+                    'age'                  => isset($p['age']) ? (int)$p['age'] : null,
+                    'blood_group'          => $p['blood_group'] ?? '',
+                    'allergies'            => $p['allergies'] ?? 'None known',
+                    'account_credit'       => (float)($p['account_credit'] ?? 0.0),
+                    'current_debt'         => $curDebt,
+                    'address'              => $p['address'] ?? '',
+                    'has_follow_up'        => !empty($nextFu),
+                    'is_due_today'         => ($nextFu && (int)$nextFu['days_diff'] === 0),
+                    'follow_up_date'       => $nextFu['follow_up_date'] ?? null,
+                    'follow_up_doctor_id'  => !empty($nextFu['doctor_id']) ? (int)$nextFu['doctor_id'] : null,
+                    'follow_up_doctor_name'=> $nextFu['doctor_name'] ?? null,
+                    'follow_up_doctor_fee' => !empty($nextFu['doctor_fee']) ? (float)$nextFu['doctor_fee'] : 10.00,
+                    'follow_up_diagnosis'  => $nextFu['assessment_diagnosis'] ?? null,
+                    'follow_up_days_diff'  => isset($nextFu['days_diff']) ? (int)$nextFu['days_diff'] : null,
                 ];
             }
 

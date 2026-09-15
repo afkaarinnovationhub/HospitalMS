@@ -99,6 +99,26 @@ if ($queueId) {
     }
 }
 
+// If accessing patient consultation directly without queue_id, enforce doctor follow-up ownership
+if ($patientId > 0 && !$queueId && $currentDoctorId && (($currentUser['role'] ?? '') === ROLE_DOCTOR)) {
+    $pdo = getDBConnection();
+    $stmtFuCheck = $pdo->prepare("
+        SELECT c.doctor_id, u.full_name as doctor_name 
+        FROM consultations c
+        JOIN users u ON c.doctor_id = u.id
+        WHERE c.patient_id = :pat_id 
+          AND c.follow_up_date = CURDATE()
+          AND (c.follow_up_status IS NULL OR c.follow_up_status = 'pending')
+        LIMIT 1
+    ");
+    $stmtFuCheck->execute([':pat_id' => $patientId]);
+    $activeFu = $stmtFuCheck->fetch();
+    if ($activeFu && (int)$activeFu['doctor_id'] !== $currentDoctorId) {
+        setFlashMessage('error', 'Access denied. Bukaankan wuxuu maanta ballan dib-u-eegis ah (Follow-up) la leeyahay Dr. ' . $activeFu['doctor_name'] . '. Maadama aadan ahayn dhaqtarka ballanta leh, ma samayn kartid consultation.');
+        safeRedirect('doctor_dashboard.php');
+    }
+}
+
 // If no active patient is selected, render clean "Consultation Station / Waiting Queue"
 if (!$patient) {
     $pageTitle = 'Consultation Station - ' . HOSPITAL_NAME;
@@ -374,7 +394,7 @@ $objectiveVal     = $draftConsultation['objective_findings'] ?? '';
 $assessmentVal    = $draftConsultation['assessment_diagnosis'] ?? '';
 $secondaryVal     = $draftConsultation['secondary_diagnosis'] ?? '';
 $treatmentPlanVal = $draftConsultation['treatment_plan'] ?? '';
-$followUpDateVal  = !empty($draftConsultation['follow_up_date']) ? $draftConsultation['follow_up_date'] : date('Y-m-d', strtotime('+7 days'));
+$followUpDateVal  = !empty($draftConsultation['follow_up_date']) ? $draftConsultation['follow_up_date'] : '';
 
 $initials = strtoupper(substr($patient['first_name'], 0, 1) . substr($patient['last_name'], 0, 1));
 $hasAge = !empty($patient['dob']) && !empty($patient['age']);
@@ -748,8 +768,27 @@ include __DIR__ . '/../components/header.php';
                     <textarea name="treatment_plan" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-2 text-xs text-on-surface focus:border-primary outline-none resize-none" rows="2" placeholder="Drink plenty of fluids, rest for 3 days, return if fever exceeds 39°C..."><?php echo e($treatmentPlanVal); ?></textarea>
                 </div>
                 <div>
-                    <label class="block font-label-md text-xs text-on-surface-variant mb-xs font-semibold">Follow-up Appointment Date</label>
-                    <input name="follow_up_date" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-2 text-xs text-on-surface" type="date" value="<?php echo e($followUpDateVal); ?>">
+                    <div class="flex items-center justify-between mb-xs">
+                        <label class="block font-label-md text-xs text-on-surface-variant font-semibold">
+                            Follow-up Appointment Date <span class="text-on-surface-variant/70 font-normal">(Optional / Ikhtiyaari)</span>
+                        </label>
+                        <button type="button" onclick="document.getElementById('follow_up_date_input').value = ''" class="text-[11px] text-error hover:underline flex items-center gap-0.5 cursor-pointer" title="Ka noqo ama ha u qabanin wax ballan ah">
+                            <span class="material-symbols-outlined text-[14px]">event_busy</span>
+                            Clear / No Follow-up
+                        </button>
+                    </div>
+                    <input id="follow_up_date_input" name="follow_up_date" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-2 text-xs text-on-surface focus:border-primary outline-none" type="date" value="<?php echo e($followUpDateVal); ?>" min="<?php echo date('Y-m-d'); ?>">
+                    <div class="flex items-center gap-1.5 mt-2">
+                        <span class="text-[10px] text-on-surface-variant font-medium">Quick Presets:</span>
+                        <button type="button" onclick="setFollowUpDays(3)" class="text-[10px] px-2 py-0.5 rounded bg-surface-container border border-outline-variant hover:bg-primary hover:text-on-primary transition-colors cursor-pointer">+3 Days</button>
+                        <button type="button" onclick="setFollowUpDays(7)" class="text-[10px] px-2 py-0.5 rounded bg-surface-container border border-outline-variant hover:bg-primary hover:text-on-primary transition-colors cursor-pointer">+1 Week</button>
+                        <button type="button" onclick="setFollowUpDays(14)" class="text-[10px] px-2 py-0.5 rounded bg-surface-container border border-outline-variant hover:bg-primary hover:text-on-primary transition-colors cursor-pointer">+2 Weeks</button>
+                        <button type="button" onclick="setFollowUpDays(30)" class="text-[10px] px-2 py-0.5 rounded bg-surface-container border border-outline-variant hover:bg-primary hover:text-on-primary transition-colors cursor-pointer">+1 Month</button>
+                    </div>
+                    <p class="text-[11px] text-on-surface-variant/80 mt-1.5 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[14px] text-primary">info</span>
+                        Kaliya buuxi haddii bukaanku u baahan yahay ballan dib-u-eegis ah. Haddii aadan taariikh dooran, wax ballan ah lama diiwaangelinayo.
+                    </p>
                 </div>
             </div>
 
@@ -887,6 +926,18 @@ include __DIR__ . '/../components/header.php';
             btn.closest('.med-row').remove();
         } else {
             alert('At least one medication row must remain. You can select "None" if no drugs are prescribed.');
+        }
+    }
+
+    function setFollowUpDays(days) {
+        const d = new Date();
+        d.setDate(d.getDate() + days);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const input = document.getElementById('follow_up_date_input');
+        if (input) {
+            input.value = `${yyyy}-${mm}-${dd}`;
         }
     }
 </script>
