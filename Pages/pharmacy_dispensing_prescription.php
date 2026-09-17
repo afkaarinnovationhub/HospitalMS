@@ -75,7 +75,7 @@ if ($selectedRxId <= 0 && !empty($queue)) {
 
 $activePrescription = ($selectedRxId > 0) ? PharmacyOperation::getPrescriptionById($selectedRxId) : null;
 $allMedications     = InventoryOperation::getMedicationsForSale();
-$patientDebts       = PharmacyOperation::getOutstandingPatientDebts();
+
 
 $pageTitle = 'Pharmacy Dispensing - ' . HOSPITAL_NAME;
 $headerTitle = HOSPITAL_NAME . ' - Pharmacy';
@@ -95,10 +95,7 @@ include __DIR__ . '/../components/header.php';
             </p>
         </div>
         <div class="flex flex-wrap gap-sm w-full sm:w-auto">
-            <button type="button" onclick="openPatientDebtModal()" class="flex-1 sm:flex-none justify-center px-3 py-2 border border-error/50 text-error font-label-md text-xs rounded-lg hover:bg-error-container/40 transition-colors flex items-center gap-1.5 font-medium cursor-pointer shadow-xs">
-                <span class="material-symbols-outlined text-[18px]">receipt_long</span>
-                Patient Debts (<?php echo count($patientDebts); ?>)
-            </button>
+
             <button type="button" onclick="openWalkInModal()" class="flex-1 sm:flex-none justify-center px-3 py-2 bg-secondary text-on-secondary font-label-md text-xs rounded-lg hover:bg-on-secondary-container transition-colors flex items-center gap-1.5 font-semibold shadow-xs cursor-pointer">
                 <span class="material-symbols-outlined text-[18px]">point_of_sale</span>
                 + Direct Walk-in / OTC Sale
@@ -610,65 +607,7 @@ include __DIR__ . '/../components/header.php';
     </div>
 </div>
 
-<!-- MODAL 2: Patient Outstanding Debts (Accounts Receivable) -->
-<div id="patient-debt-modal" class="fixed inset-0 z-50 bg-black/60 hidden backdrop-blur-xs flex items-center justify-center p-4">
-    <div class="bg-surface rounded-2xl border border-outline-variant max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl custom-scrollbar">
-        <div class="flex justify-between items-center pb-3 border-b border-outline-variant mb-4">
-            <div class="flex items-center gap-2">
-                <span class="material-symbols-outlined text-error text-[26px]">receipt_long</span>
-                <div>
-                    <h3 class="font-headline-sm text-lg font-bold text-on-surface">Patient Pharmacy Debts (Deymaha Bukaanka)</h3>
-                    <p class="text-xs text-on-surface-variant">Collect installment debt payments from walk-in customers and patients.</p>
-                </div>
-            </div>
-            <button type="button" onclick="closePatientDebtModal()" class="text-on-surface-variant hover:text-on-surface p-1 rounded-lg cursor-pointer">
-                <span class="material-symbols-outlined text-[22px]">close</span>
-            </button>
-        </div>
 
-        <?php if (empty($patientDebts)): ?>
-            <div class="py-8 text-center text-on-surface-variant">
-                <span class="material-symbols-outlined text-4xl text-secondary mb-2">task_alt</span>
-                <p class="font-bold text-sm">No Outstanding Patient Debts!</p>
-                <p class="text-xs text-on-surface-variant mt-1">All customer pharmacy sales and prescription debts are fully paid.</p>
-            </div>
-        <?php else: ?>
-            <div class="space-y-3">
-                <?php foreach ($patientDebts as $pDebt): ?>
-                    <div class="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/80 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                        <div>
-                            <div class="flex items-center gap-2">
-                                <span class="font-code-md font-bold text-primary text-xs"><?php echo e($pDebt['invoice_number']); ?></span>
-                                <span class="bg-error-container text-on-error-container text-[10px] font-bold px-2 py-0.5 rounded-full capitalize"><?php echo e($pDebt['payment_status']); ?></span>
-                                <span class="text-[10px] bg-surface-container text-on-surface px-2 py-0.5 rounded font-medium capitalize"><?php echo e($pDebt['sale_type']); ?></span>
-                            </div>
-                            <h4 class="font-bold text-xs sm:text-sm text-on-surface mt-1"><?php echo e($pDebt['customer_name']); ?></h4>
-                            <p class="text-[11px] text-on-surface-variant">Phone: <?php echo e($pDebt['customer_phone'] ?: 'N/A'); ?> • Date: <?php echo date('M d, Y', strtotime($pDebt['created_at'])); ?></p>
-                        </div>
-                        <div class="text-right flex flex-col items-end w-full sm:w-auto">
-                            <p class="text-xs text-on-surface-variant">Net: $<?php echo number_format((float)$pDebt['net_amount'], 2); ?> | Paid: $<?php echo number_format((float)$pDebt['paid_amount'], 2); ?></p>
-                            <p class="font-bold text-sm text-error mt-0.5">Due: $<?php echo number_format((float)$pDebt['due_amount'], 2); ?></p>
-                            <form method="POST" action="pharmacy_dispensing_prescription.php" class="flex items-center gap-2 mt-2">
-                                <?php echo csrfField(); ?>
-                                <input type="hidden" name="action" value="collect_patient_debt">
-                                <input type="hidden" name="sale_id" value="<?php echo (int)$pDebt['id']; ?>">
-                                <input name="amount_paid" step="0.01" min="0.01" max="<?php echo (float)$pDebt['due_amount']; ?>" value="<?php echo (float)$pDebt['due_amount']; ?>" class="w-24 bg-surface border border-outline-variant rounded px-2 py-1 text-xs font-bold" type="number" required>
-                                <select name="payment_method" class="bg-surface border border-outline-variant rounded px-1.5 py-1 text-xs">
-                                    <option value="cash">Cash</option>
-                                    <option value="mobile">Mobile</option>
-                                    <option value="card">Card</option>
-                                </select>
-                                <button type="submit" class="px-3 py-1 bg-secondary hover:bg-on-secondary-container text-on-secondary text-xs font-bold rounded shadow-xs cursor-pointer">
-                                    Collect
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        <?php endif; ?>
-    </div>
-</div>
 
 <script>
     function openWalkInModal() {
@@ -864,12 +803,7 @@ include __DIR__ . '/../components/header.php';
             }
         }
     });
-    function openPatientDebtModal() {
-        document.getElementById('patient-debt-modal').classList.remove('hidden');
-    }
-    function closePatientDebtModal() {
-        document.getElementById('patient-debt-modal').classList.add('hidden');
-    }
+
 
     function applyFullPatientCredit() {
         const subtotalInput = document.getElementById('rx-subtotal');

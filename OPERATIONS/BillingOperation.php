@@ -442,7 +442,7 @@ class BillingOperation
         $newPaidTotal     = round($currentPaid + $effectivePayment, 2);
         $newDueTotal      = max(0.00, round($netTotal - $newPaidTotal, 2));
 
-        $newStatus = ($newDueTotal <= 0.00) ? 'paid' : (($newPaidTotal > 0.00 || $paymentMethod === 'credit') ? 'partial' : 'pending');
+        $newStatus = ($newDueTotal <= 0.00) ? 'paid' : 'partial';
 
         // Check if this invoice already had initial revenue/AR accrual
         $hasInitialAccrual = ($currentPaid > 0.00) || !empty($invoice['paid_at']);
@@ -846,7 +846,7 @@ class BillingOperation
             FROM invoices inv
             LEFT JOIN patients p ON inv.patient_id = p.id
             LEFT JOIN patient_queues q ON inv.queue_id = q.id
-            WHERE inv.payment_status IN ('pending', 'partial')
+            WHERE inv.paid_at IS NULL AND inv.payment_status = 'pending'
         ";
         $params = [];
 
@@ -886,7 +886,7 @@ class BillingOperation
             FROM invoices inv
             LEFT JOIN users u ON inv.cashier_id = u.id
             LEFT JOIN patients p ON inv.patient_id = p.id
-            WHERE inv.payment_status = 'paid' AND DATE(inv.paid_at) BETWEEN ? AND ?
+            WHERE (inv.payment_status = 'paid' OR inv.paid_at IS NOT NULL) AND DATE(inv.paid_at) BETWEEN ? AND ?
             ORDER BY inv.paid_at DESC
             LIMIT ?
         ");
@@ -928,7 +928,7 @@ class BillingOperation
         $stmtPending = $pdo->query("
             SELECT COUNT(*), COALESCE(SUM(due_amount), 0)
             FROM invoices
-            WHERE payment_status IN ('pending', 'partial')
+            WHERE paid_at IS NULL AND payment_status = 'pending'
         ");
         $pendingData = $stmtPending->fetch(PDO::FETCH_NUM);
         $pendingCount = (int)($pendingData[0] ?? 0);

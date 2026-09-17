@@ -899,7 +899,7 @@ try {
             $stmtSum = $pdo->query("
                 SELECT COUNT(*) as cnt, MAX(id) as max_id, MAX(payment_status) as max_status
                 FROM invoices
-                WHERE payment_status IN ('pending', 'partial')
+                WHERE paid_at IS NULL AND payment_status = 'pending'
             ");
             $sumData = $stmtSum->fetch();
             $serverChecksum = md5('bq_' . ($sumData['cnt'] ?? 0) . '_' . ($sumData['max_id'] ?? 0) . '_' . ($sumData['max_status'] ?? '') . '_' . $billType);

@@ -323,8 +323,8 @@ include __DIR__ . '/../components/header.php';
                         </div>
                     </div>
 
-                    <!-- Cashier Payment Form (Only active if due_amount > 0) -->
-                    <?php if ((float)$activeInvoice['due_amount'] > 0): ?>
+                    <!-- Cashier Payment Form (Only active if due_amount > 0 and not yet checked out) -->
+                    <?php if ((float)$activeInvoice['due_amount'] > 0 && empty($activeInvoice['paid_at'])): ?>
                         <form method="POST" action="billing_payments.php" class="p-4 bg-surface-container rounded-2xl border border-primary/30 space-y-3">
                             <?php echo csrfField(); ?>
                             <input type="hidden" name="action" value="process_payment">
@@ -372,6 +372,26 @@ include __DIR__ . '/../components/header.php';
                                 </button>
                             </div>
                         </form>
+                    <?php elseif (!empty($activeInvoice['paid_at'])): ?>
+                        <div class="p-4 bg-secondary-fixed/20 border border-secondary/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="flex items-center gap-2 text-xs font-semibold text-on-surface">
+                                <span class="material-symbols-outlined text-secondary text-[22px]">check_circle</span>
+                                <div>
+                                    <p class="font-bold">Biilkan waa la xaqiijiyay oo loo gudbiyay Accounts-ka (Checked Out)</p>
+                                    <?php if ((float)$activeInvoice['due_amount'] > 0.005): ?>
+                                        <p class="text-[11px] text-on-surface-variant">Haraaga deynta ah ee dhiman (<strong>$<?php echo number_format((float)$activeInvoice['due_amount'], 2); ?></strong>) waxaa toos looga heli karaa loogana qaadaa <a href="patient_debts.php" class="text-primary underline font-bold">Patient Debts</a>.</p>
+                                    <?php else: ?>
+                                        <p class="text-[11px] text-on-surface-variant">Biilka lacagtiisa si buuxda ayaa loo wada bixiyay ($<?php echo number_format((float)$activeInvoice['paid_amount'], 2); ?>).</p>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <?php if ((float)$activeInvoice['due_amount'] > 0.005): ?>
+                                <a href="patient_debts.php" class="px-3 py-1.5 bg-surface border border-outline-variant hover:bg-surface-container text-xs font-bold rounded-xl text-primary flex items-center gap-1 shadow-xs shrink-0 self-start sm:self-auto">
+                                    <span class="material-symbols-outlined text-[16px]">account_balance_wallet</span>
+                                    Patient Debts
+                                </a>
+                            <?php endif; ?>
+                        </div>
                     <?php else: ?>
                         <div class="p-3 bg-secondary-fixed/30 rounded-xl border border-secondary/30 text-center text-xs font-bold text-on-secondary-fixed flex items-center justify-center gap-2">
                             <span class="material-symbols-outlined text-[20px] text-secondary">verified</span>
